@@ -35,12 +35,14 @@ export default function ExportScreen() {
 
   const fetchData = async () => {
     try {
+      if (!user?.id || !id) return;
+
       const [clipRes, packsRes] = await Promise.all([
         supabase
           .from('clips')
           .select('id, title')
-          .eq('id', id)
-          .eq('user_id', user?.id)
+          .eq('id', id as string)
+          .eq('user_id', user.id)
           .maybeSingle(),
         supabase
           .from('style_packs')
@@ -52,9 +54,10 @@ export default function ExportScreen() {
       if (packsRes.error) throw packsRes.error;
 
       setClip(clipRes.data);
-      setStylePacks(packsRes.data || []);
+      const packs = (packsRes.data || []) as StylePack[];
+      setStylePacks(packs);
 
-      const defaultPack = packsRes.data?.find(p => !p.is_premium);
+      const defaultPack = packs.find((p) => !p.is_premium);
       if (defaultPack) {
         setSelectedPack(defaultPack.id);
       }
@@ -84,17 +87,35 @@ export default function ExportScreen() {
     try {
       setExporting(true);
 
+      const exportId = crypto.randomUUID();
+
       const { error } = await supabase
         .from('exports')
         .insert({
+          id: exportId,
           user_id: user?.id,
           clip_id: id,
           style_pack_id: selectedPack,
           status: 'pending',
-          settings: {},
+          settings: { resolution: '1080', fps: 60 },
         } as any);
 
       if (error) throw error;
+
+      const { data: session } = await supabase.auth.getSession();
+      if (session?.session?.access_token) {
+        fetch(
+          `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/render-export`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ export_id: exportId }),
+          }
+        ).catch(err => console.error('Failed to trigger render:', err));
+      }
 
       Alert.alert(
         'Export Started',
@@ -106,9 +127,9 @@ export default function ExportScreen() {
           },
         ]
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error('Export error:', err);
-      Alert.alert('Error', 'Failed to start export');
+      Alert.alert('Error', err.message || 'Failed to start export');
     } finally {
       setExporting(false);
     }

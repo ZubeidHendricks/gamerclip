@@ -23,24 +23,42 @@ export default function HomeScreen() {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('clips')
-        .insert({
-          user_id: user?.id,
-          title: 'Imported Clip',
-          source_url: linkUrl,
-          source_type: linkUrl.includes('twitch') ? 'twitch' : 'kick',
-          status: 'processing',
-        } as any);
+      const sourceType = linkUrl.includes('twitch') ? 'twitch' : 'kick';
+      const title = `Imported ${sourceType} clip`;
 
-      if (error) throw error;
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ingest-video`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: linkUrl,
+            title,
+            source_type: sourceType,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to import clip');
+      }
 
       Alert.alert('Success', 'Clip import started! Check your library.');
       setShowLinkModal(false);
       setLinkUrl('');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Import error:', err);
-      Alert.alert('Error', 'Failed to import clip');
+      Alert.alert('Error', err.message || 'Failed to import clip');
     } finally {
       setLoading(false);
     }
@@ -60,23 +78,59 @@ export default function HomeScreen() {
       }
 
       const file = result.assets[0];
+      const fileName = file.name || `upload_${Date.now()}.mp4`;
+      const filePath = `${user?.id}/${crypto.randomUUID()}.mp4`;
 
-      const { error } = await supabase
+      const fileBlob = await fetch(file.uri).then(r => r.blob());
+
+      const { error: uploadError } = await supabase.storage
+        .from('clips')
+        .upload(filePath, fileBlob, {
+          contentType: file.mimeType || 'video/mp4',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('clips')
+        .getPublicUrl(filePath);
+
+      const clipId = crypto.randomUUID();
+
+      const { error: insertError } = await supabase
         .from('clips')
         .insert({
+          id: clipId,
           user_id: user?.id,
-          title: file.name || 'Uploaded Video',
+          title: fileName,
           source_type: 'upload',
           status: 'processing',
-          video_url: file.uri,
+          video_url: publicUrl,
+          duration: 0,
         } as any);
 
-      if (error) throw error;
+      if (insertError) throw insertError;
+
+      const { data: session } = await supabase.auth.getSession();
+      if (session?.session?.access_token) {
+        fetch(
+          `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/process-ai-detection`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ clip_id: clipId }),
+          }
+        ).catch(err => console.error('Failed to trigger processing:', err));
+      }
 
       Alert.alert('Success', 'Video uploaded! Processing will begin shortly.');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Upload error:', err);
-      Alert.alert('Error', 'Failed to upload video');
+      Alert.alert('Error', err.message || 'Failed to upload video');
     } finally {
       setUploading(false);
     }

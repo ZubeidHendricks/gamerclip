@@ -198,44 +198,145 @@ supabase/
 - Visual selection interface
 - Used in export process
 
-## What's Next
+## Production Infrastructure
 
-To make this production-ready, you would need to:
+This app now has **real backend connections** for production use:
 
-### Core Functionality
-- Implement actual video processing pipeline (FFmpeg)
-- Integrate real AI/ML models for highlight detection
-- Implement video export/rendering with selected style packs
-- Add progress tracking for processing and exports
-- Real-time updates using Supabase Realtime
+### Supabase Storage
+- ✅ 3 storage buckets configured (clips, exports, thumbnails)
+- ✅ Row Level Security policies for user isolation
+- ✅ Direct file upload from mobile app
+- ✅ Public URLs for video playback
 
-### Integrations
-- Connect to real Twitch API for stream fetching
-- Connect to Kick API for stream fetching
-- Add Supabase Storage for video uploads
-- Implement CDN for video delivery
+### Edge Functions (Deployed)
+1. **ingest-video** - Downloads videos from Twitch/Kick URLs
+   - Fetches from Twitch API with OAuth
+   - Downloads video file to Supabase Storage
+   - Triggers AI detection automatically
 
-### Premium Features
-- Implement subscription flow with RevenueCat
-- Gate premium style packs behind subscription
-- Enable HD exports for premium users
-- Add usage limits for free tier
+2. **process-ai-detection** - AI-powered highlight detection
+   - Audio analysis for hype moments (using Replicate API)
+   - Visual detection for kill banners, death screens
+   - Stores detections with timestamps and confidence scores
+   - Fallback pattern-based detection if AI unavailable
 
-### Enhancements
-- Push notifications for completed exports
-- Social sharing to Twitter, Instagram, TikTok
-- Custom style pack creation
-- Manual clip trimming interface
-- Thumbnail generation
-- Video compression options
-- Export queue management
+3. **render-export** - Video rendering and export
+   - Uses Shotstack API for video editing
+   - Applies game-specific style packs
+   - Smart trimming based on AI detections
+   - Generates vertical (9:16) format for social media
+   - Auto-layout with overlays and transitions
 
-### Polish
-- Loading states and skeletons
-- Better error messages
-- Onboarding tutorial
-- Analytics and crash reporting
-- Performance optimization
+### Real-Time Updates
+- ✅ Supabase Realtime subscriptions on library screen
+- ✅ Automatic UI updates when clips change status
+- ✅ Live processing status indicators
+
+### Required API Keys
+
+To fully activate the production features, configure these environment variables in your Supabase project:
+
+```bash
+# Twitch API (for stream/clip ingestion)
+TWITCH_CLIENT_ID=your_twitch_client_id
+TWITCH_CLIENT_SECRET=your_twitch_secret
+
+# Replicate AI (for audio/visual detection)
+REPLICATE_API_KEY=your_replicate_key
+
+# Shotstack (for video rendering)
+SHOTSTACK_API_KEY=your_shotstack_key
+```
+
+## Getting the API Keys
+
+### 1. Twitch API
+1. Visit [Twitch Developers](https://dev.twitch.tv/console/apps)
+2. Create a new application
+3. Get your Client ID and Client Secret
+4. Add to Supabase Edge Function secrets
+
+### 2. Replicate AI (Optional)
+1. Visit [Replicate](https://replicate.com/)
+2. Create an account
+3. Generate an API token
+4. Add to Supabase Edge Function secrets
+5. Without this, the app uses fallback pattern-based detection
+
+### 3. Shotstack Video Rendering
+1. Visit [Shotstack](https://shotstack.io/)
+2. Sign up for an account
+3. Get your API key from dashboard
+4. Add to Supabase Edge Function secrets
+
+## How It Works
+
+### 1. Video Ingestion Flow
+```
+User pastes Twitch URL
+  → Home screen calls /ingest-video edge function
+  → Edge function fetches video from Twitch API
+  → Downloads video file
+  → Uploads to Supabase Storage (clips bucket)
+  → Creates clip record in database (status: processing)
+  → Triggers /process-ai-detection edge function
+```
+
+### 2. AI Detection Flow
+```
+Clip uploaded with video_url
+  → /process-ai-detection downloads video
+  → Calls Replicate API for audio analysis (hype detection)
+  → Calls Replicate API for visual detection (kill banners)
+  → Stores all detections with timestamps in ai_detections table
+  → Updates clip status to 'completed'
+  → Library screen updates in real-time via Supabase Realtime
+```
+
+### 3. Export/Render Flow
+```
+User selects style pack and clicks export
+  → Creates export record in database
+  → Calls /render-export edge function
+  → Edge function fetches clip + style pack + AI detections
+  → Builds Shotstack render specification:
+     - Trims video to highlight moments
+     - Applies game-specific overlays/transitions
+     - Converts to 9:16 vertical format
+     - Adds text overlays for detection types
+  → Polls Shotstack until render completes
+  → Downloads rendered video
+  → Uploads to Supabase Storage (exports bucket)
+  → Updates export record with output URL
+  → User can download/share
+```
+
+## Deployment Checklist
+
+- [x] Database schema with RLS
+- [x] Storage buckets with security policies
+- [x] Edge functions deployed
+- [x] Real-time subscriptions
+- [x] Video upload to storage
+- [ ] Configure API keys in Supabase
+- [ ] Test Twitch video ingestion
+- [ ] Test AI detection with sample videos
+- [ ] Test export rendering
+- [ ] Add push notifications (optional)
+- [ ] Implement RevenueCat for subscriptions (optional)
+- [ ] Deploy to App Store / Play Store
+
+## Next Enhancements
+
+- **Kick API Integration** - Add support for Kick.com clips
+- **Custom Style Packs** - Let users create their own templates
+- **Manual Trimming** - UI for manual clip editing
+- **Social Sharing** - Direct sharing to Twitter, Instagram, TikTok
+- **Push Notifications** - Notify when processing completes
+- **Analytics** - Track usage and popular games
+- **Advanced AI** - Better detection models, player recognition
+- **Face-cam Auto-centering** - Smart cropping for face cams
+- **Meme Library** - Insert trending memes into clips
 
 ## License
 

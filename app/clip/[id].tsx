@@ -44,11 +44,13 @@ export default function ClipDetailScreen() {
 
   const fetchClipDetails = async () => {
     try {
+      if (!user?.id || !id) return;
+
       const { data, error } = await supabase
         .from('clips')
         .select('*')
-        .eq('id', id)
-        .eq('user_id', user?.id)
+        .eq('id', id as string)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (error) throw error;
