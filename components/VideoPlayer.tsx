@@ -1,0 +1,115 @@
+import { useState, useRef } from 'react';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
+import { Play, Pause } from 'lucide-react-native';
+
+type VideoPlayerProps = {
+  videoUrl: string | null;
+  style?: any;
+};
+
+export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
+  const videoRef = useRef<Video>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+
+  const handlePlayPause = async () => {
+    if (!videoRef.current) return;
+
+    if (isPlaying) {
+      await videoRef.current.pauseAsync();
+      setIsPlaying(false);
+    } else {
+      await videoRef.current.playAsync();
+      setIsPlaying(true);
+    }
+  };
+
+  if (!videoUrl) {
+    return (
+      <View style={[styles.placeholder, style]}>
+        <Play size={48} color="#94a3b8" />
+        <Text style={styles.placeholderText}>No video available</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, style]}>
+      <Video
+        ref={videoRef}
+        source={{ uri: videoUrl }}
+        style={styles.video}
+        resizeMode={ResizeMode.CONTAIN}
+        onPlaybackStatusUpdate={(status) => {
+          if (status.isLoaded) {
+            setIsPlaying(status.isPlaying);
+          }
+        }}
+        useNativeControls={false}
+      />
+
+      {showControls && (
+        <TouchableOpacity
+          style={styles.controlsOverlay}
+          onPress={handlePlayPause}
+          activeOpacity={0.7}>
+          <View style={styles.playButton}>
+            {isPlaying ? (
+              <Pause size={32} color="#ffffff" />
+            ) : (
+              <Play size={32} color="#ffffff" />
+            )}
+          </View>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    backgroundColor: '#0f172a',
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  video: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholder: {
+    width: '100%',
+    height: 220,
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#64748b',
+    marginTop: 12,
+  },
+  controlsOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  playButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

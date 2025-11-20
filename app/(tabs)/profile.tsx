@@ -1,9 +1,62 @@
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { User, Settings, Crown, LogOut } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { router } from 'expo-router';
 
 export default function ProfileScreen() {
+  const { user } = useAuth();
+  const [clipsCount, setClipsCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchStats();
+  }, [user]);
+
+  const fetchStats = async () => {
+    if (!user) return;
+
+    try {
+      const { count } = await supabase
+        .from('clips')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      setClipsCount(count || 0);
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+    }
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await supabase.auth.signOut();
+              router.replace('/auth/login');
+            } catch (err) {
+              console.error('Sign out error:', err);
+              Alert.alert('Error', 'Failed to sign out');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
@@ -14,7 +67,8 @@ export default function ProfileScreen() {
             <View style={styles.avatarContainer}>
               <User size={48} color="#94a3b8" />
             </View>
-            <Text style={styles.username}>Guest User</Text>
+            <Text style={styles.username}>{user?.email?.split('@')[0] || 'User'}</Text>
+            <Text style={styles.userEmail}>{user?.email}</Text>
             <View style={styles.tierBadge}>
               <Text style={styles.tierText}>Free Tier</Text>
             </View>
@@ -23,19 +77,22 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Account</Text>
 
-            <Pressable style={styles.menuItem}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => router.push('/settings')}
+              activeOpacity={0.7}>
               <View style={styles.menuIconContainer}>
                 <Settings size={20} color="#10b981" />
               </View>
               <Text style={styles.menuText}>Settings</Text>
-            </Pressable>
+            </TouchableOpacity>
 
-            <Pressable style={styles.menuItem}>
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
               <View style={styles.menuIconContainer}>
                 <Crown size={20} color="#fbbf24" />
               </View>
               <Text style={styles.menuText}>Upgrade to Premium</Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.section}>
@@ -43,7 +100,7 @@ export default function ProfileScreen() {
 
             <View style={styles.usageCard}>
               <Text style={styles.usageLabel}>Clips This Month</Text>
-              <Text style={styles.usageValue}>0 / 10</Text>
+              <Text style={styles.usageValue}>{clipsCount} / 10</Text>
             </View>
 
             <View style={styles.usageCard}>
@@ -52,10 +109,14 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <Pressable style={styles.logoutButton}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleSignOut}
+            disabled={loading}
+            activeOpacity={0.7}>
             <LogOut size={20} color="#ef4444" />
-            <Text style={styles.logoutText}>Sign Out</Text>
-          </Pressable>
+            <Text style={styles.logoutText}>{loading ? 'Signing Out...' : 'Sign Out'}</Text>
+          </TouchableOpacity>
 
           <Text style={styles.version}>Version 1.0.0</Text>
         </ScrollView>
@@ -94,7 +155,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#ffffff',
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginBottom: 12,
   },
   tierBadge: {
     backgroundColor: '#1e293b',
