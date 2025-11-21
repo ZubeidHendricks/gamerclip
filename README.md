@@ -209,7 +209,7 @@ This app now has **real backend connections** for production use:
 - ✅ Public URLs for video playback
 
 ### Edge Functions (Deployed)
-1. **ingest-video** - Downloads videos from Twitch/Kick URLs
+1. **ingest-video** - Downloads videos from Twitch/Kick/Direct Upload
    - Fetches from Twitch API with OAuth
    - Downloads video file to Supabase Storage
    - Triggers AI detection automatically
@@ -220,12 +220,20 @@ This app now has **real backend connections** for production use:
    - Stores detections with timestamps and confidence scores
    - Fallback pattern-based detection if AI unavailable
 
-3. **render-export** - Video rendering and export
+3. **process-video-features** - Advanced AI Processing (NEW)
+   - **AI Captions**: Auto-generates subtitles using AssemblyAI
+   - **Enhance Speech**: Improves audio clarity with AI
+   - **AI Reframe**: Smart vertical cropping for 9:16 format
+   - **AI B-Roll**: Inserts contextual footage from Pexels
+   - **AI Voice-over**: Generates commentary using ElevenLabs
+
+4. **render-export** - Video rendering and export
    - Uses Shotstack API for video editing
    - Applies game-specific style packs
    - Smart trimming based on AI detections
    - Generates vertical (9:16) format for social media
    - Auto-layout with overlays and transitions
+   - Applies all selected AI features
 
 ### Real-Time Updates
 - ✅ Supabase Realtime subscriptions on library screen
@@ -241,8 +249,17 @@ To fully activate the production features, configure these environment variables
 TWITCH_CLIENT_ID=your_twitch_client_id
 TWITCH_CLIENT_SECRET=your_twitch_secret
 
-# Replicate AI (for audio/visual detection)
+# Replicate AI (for audio/visual detection & speech enhancement)
 REPLICATE_API_KEY=your_replicate_key
+
+# AssemblyAI (for AI captions/subtitles)
+ASSEMBLYAI_API_KEY=your_assemblyai_key
+
+# Pexels (for B-Roll footage)
+PEXELS_API_KEY=your_pexels_key
+
+# ElevenLabs (for AI voice-over)
+ELEVENLABS_API_KEY=your_elevenlabs_key
 
 # Shotstack (for video rendering)
 SHOTSTACK_API_KEY=your_shotstack_key
@@ -263,7 +280,25 @@ SHOTSTACK_API_KEY=your_shotstack_key
 4. Add to Supabase Edge Function secrets
 5. Without this, the app uses fallback pattern-based detection
 
-### 3. Shotstack Video Rendering
+### 3. AssemblyAI (For Captions)
+1. Visit [AssemblyAI](https://www.assemblyai.com/)
+2. Sign up for a free account
+3. Get your API key from dashboard
+4. Add to Supabase Edge Function secrets
+
+### 4. Pexels (For B-Roll)
+1. Visit [Pexels API](https://www.pexels.com/api/)
+2. Create a free account
+3. Generate an API key
+4. Add to Supabase Edge Function secrets
+
+### 5. ElevenLabs (For Voice-over)
+1. Visit [ElevenLabs](https://elevenlabs.io/)
+2. Sign up for an account
+3. Get your API key
+4. Add to Supabase Edge Function secrets
+
+### 6. Shotstack (For Video Rendering)
 1. Visit [Shotstack](https://shotstack.io/)
 2. Sign up for an account
 3. Get your API key from dashboard

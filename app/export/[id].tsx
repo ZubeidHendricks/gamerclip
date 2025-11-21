@@ -28,6 +28,13 @@ export default function ExportScreen() {
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [processingOptions, setProcessingOptions] = useState({
+    add_captions: false,
+    enhance_speech: false,
+    reframe: false,
+    add_b_roll: false,
+    add_voiceover: false,
+  });
 
   useEffect(() => {
     fetchData();
@@ -98,12 +105,27 @@ export default function ExportScreen() {
           style_pack_id: selectedPack,
           status: 'pending',
           settings: { resolution: '1080', fps: 60 },
+          processing_options: processingOptions,
         } as any);
 
       if (error) throw error;
 
       const { data: session } = await supabase.auth.getSession();
       if (session?.session?.access_token) {
+        if (Object.values(processingOptions).some(v => v)) {
+          fetch(
+            `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/process-video-features`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session.session.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ clip_id: id, features: processingOptions }),
+            }
+          ).catch(err => console.error('Failed to trigger processing:', err));
+        }
+
         fetch(
           `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/render-export`,
           {
@@ -232,6 +254,121 @@ export default function ExportScreen() {
                   </View>
                 </TouchableOpacity>
               ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>AI Processing Features</Text>
+            <View style={styles.featuresList}>
+              <TouchableOpacity
+                style={styles.featureToggle}
+                onPress={() =>
+                  setProcessingOptions(prev => ({
+                    ...prev,
+                    add_captions: !prev.add_captions,
+                  }))
+                }>
+                <View style={styles.featureInfo}>
+                  <Text style={styles.featureName}>AI Captions</Text>
+                  <Text style={styles.featureDescription}>
+                    Auto-generate subtitles
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.toggle,
+                    processingOptions.add_captions && styles.toggleActive,
+                  ]}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.featureToggle}
+                onPress={() =>
+                  setProcessingOptions(prev => ({
+                    ...prev,
+                    enhance_speech: !prev.enhance_speech,
+                  }))
+                }>
+                <View style={styles.featureInfo}>
+                  <Text style={styles.featureName}>Enhance Speech</Text>
+                  <Text style={styles.featureDescription}>
+                    Improve audio clarity
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.toggle,
+                    processingOptions.enhance_speech && styles.toggleActive,
+                  ]}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.featureToggle}
+                onPress={() =>
+                  setProcessingOptions(prev => ({
+                    ...prev,
+                    reframe: !prev.reframe,
+                  }))
+                }>
+                <View style={styles.featureInfo}>
+                  <Text style={styles.featureName}>AI Reframe</Text>
+                  <Text style={styles.featureDescription}>
+                    Auto-crop to 9:16 vertical
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.toggle,
+                    processingOptions.reframe && styles.toggleActive,
+                  ]}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.featureToggle}
+                onPress={() =>
+                  setProcessingOptions(prev => ({
+                    ...prev,
+                    add_b_roll: !prev.add_b_roll,
+                  }))
+                }>
+                <View style={styles.featureInfo}>
+                  <Text style={styles.featureName}>AI B-Roll</Text>
+                  <Text style={styles.featureDescription}>
+                    Insert contextual footage
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.toggle,
+                    processingOptions.add_b_roll && styles.toggleActive,
+                  ]}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.featureToggle}
+                onPress={() =>
+                  setProcessingOptions(prev => ({
+                    ...prev,
+                    add_voiceover: !prev.add_voiceover,
+                  }))
+                }>
+                <View style={styles.featureInfo}>
+                  <Text style={styles.featureName}>AI Voice-over</Text>
+                  <Text style={styles.featureDescription}>
+                    Generate commentary
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.toggle,
+                    processingOptions.add_voiceover && styles.toggleActive,
+                  ]}
+                />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -388,6 +525,44 @@ const styles = StyleSheet.create({
   packGame: {
     fontSize: 12,
     color: '#94a3b8',
+  },
+  featuresList: {
+    gap: 12,
+  },
+  featureToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  featureInfo: {
+    flex: 1,
+  },
+  featureName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  featureDescription: {
+    fontSize: 13,
+    color: '#94a3b8',
+  },
+  toggle: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#334155',
+    borderWidth: 2,
+    borderColor: '#475569',
+  },
+  toggleActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#059669',
   },
   exportInfo: {
     backgroundColor: '#1e293b',
