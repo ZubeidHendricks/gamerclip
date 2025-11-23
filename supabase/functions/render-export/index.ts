@@ -26,6 +26,8 @@ Deno.serve(async (req: Request) => {
       throw new Error('Missing export_id');
     }
 
+    console.log('Starting export for:', export_id);
+
     const { data: exportJob, error: exportError } = await supabase
       .from('exports')
       .select(`
@@ -36,9 +38,20 @@ Deno.serve(async (req: Request) => {
       .eq('id', export_id)
       .single();
 
-    if (exportError || !exportJob) {
+    if (exportError) {
+      console.error('Export fetch error:', exportError);
+      throw new Error(`Export job not found: ${exportError.message}`);
+    }
+
+    if (!exportJob) {
       throw new Error('Export job not found');
     }
+
+    console.log('Export job found:', {
+      clip_id: exportJob.clip?.id,
+      has_video_url: !!exportJob.clip?.video_url,
+      style_pack: exportJob.style_pack?.name
+    });
 
     await supabase
       .from('exports')
@@ -49,6 +62,7 @@ Deno.serve(async (req: Request) => {
       exportJob.clip,
       exportJob.style_pack,
       exportJob.settings,
+      exportJob.processing_options,
       supabase
     );
 
@@ -67,6 +81,8 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', export_id);
 
+    console.log('Export completed successfully:', export_id);
+
     return new Response(
       JSON.stringify({ success: true, output_url: exportUrl }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -74,7 +90,15 @@ Deno.serve(async (req: Request) => {
   } catch (err) {
     console.error('Render error:', err);
 
-    const { export_id } = await req.json().catch(() => ({ export_id: null }));
+    const body = await req.text();
+    let export_id = null;
+    try {
+      const parsed = JSON.parse(body);
+      export_id = parsed.export_id;
+    } catch (e) {
+      console.error('Failed to parse request body');
+    }
+
     if (export_id) {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -82,12 +106,15 @@ Deno.serve(async (req: Request) => {
 
       await supabase
         .from('exports')
-        .update({ status: 'failed' })
+        .update({
+          status: 'failed',
+          error_message: err.message || 'Unknown error'
+        })
         .eq('id', export_id);
     }
 
     return new Response(
-      JSON.stringify({ error: err.message }),
+      JSON.stringify({ error: err.message || 'Export failed' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -97,12 +124,21 @@ async function renderVideo(
   clip: any,
   stylePack: any,
   settings: any,
+  processingOptions: any,
   supabase: any
 ): Promise<{ fileSize: number }> {
   try {
-    if (!clip.video_url) {
-      throw new Error('No video URL available');
+    console.log('Starting video render...');
+
+    if (!clip) {
+      throw new Error('Clip data is missing');
     }
+
+    if (!clip.video_url) {
+      throw new Error('No video URL available for clip');
+    }
+
+    console.log('Clip video URL:', clip.video_url);
 
     const { data: detections } = await supabase
       .from('ai_detections')
@@ -110,64 +146,107 @@ async function renderVideo(
       .eq('clip_id', clip.id)
       .order('timestamp', { ascending: true });
 
-    const shotgunApiKey = Deno.env.get('SHOTSTACK_API_KEY');
-    if (!shotgunApiKey) {
-      throw new Error('SHOTSTACK_API_KEY not configured for video rendering');
+    console.log('AI detections found:', detections?.length || 0);
+
+    const { data: captions } = await supabase
+      .from('captions')
+      .select('*')
+      .eq('clip_id', clip.id)
+      .maybeSingle();
+
+    console.log('Captions available:', !!captions);
+
+    const shotstackApiKey = Deno.env.get('SHOTSTACK_API_KEY');
+    if (!shotstackApiKey) {
+      throw new Error('SHOTSTACK_API_KEY not configured');
     }
 
     const renderSpec = buildRenderSpecification(
       clip,
       stylePack,
       detections || [],
+      captions,
+      processingOptions,
       settings
     );
+
+    console.log('Render specification:', JSON.stringify(renderSpec, null, 2));
 
     const renderResponse = await fetch('https://api.shotstack.io/v1/render', {
       method: 'POST',
       headers: {
-        'x-api-key': shotgunApiKey,
+        'x-api-key': shotstackApiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(renderSpec),
     });
 
     if (!renderResponse.ok) {
-      throw new Error('Failed to start render job');
+      const errorText = await renderResponse.text();
+      console.error('Shotstack API error:', errorText);
+      throw new Error(`Shotstack API returned ${renderResponse.status}: ${errorText}`);
     }
 
     const renderJob = await renderResponse.json();
+    console.log('Render job created:', renderJob);
+
+    if (!renderJob.response?.id) {
+      throw new Error('No render ID returned from Shotstack');
+    }
+
     const renderId = renderJob.response.id;
+    console.log('Polling render job:', renderId);
 
     let status = 'rendering';
     let renderUrl = null;
+    let attempts = 0;
+    const maxAttempts = 60;
 
-    while (status === 'rendering' || status === 'queued') {
-      await new Promise(resolve => setTimeout(resolve, 3000));
+    while ((status === 'rendering' || status === 'queued') && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      attempts++;
 
       const statusResponse = await fetch(`https://api.shotstack.io/v1/render/${renderId}`, {
-        headers: { 'x-api-key': shotgunApiKey },
+        headers: { 'x-api-key': shotstackApiKey },
       });
+
+      if (!statusResponse.ok) {
+        console.error('Failed to check render status');
+        continue;
+      }
 
       const statusData = await statusResponse.json();
       status = statusData.response.status;
       renderUrl = statusData.response.url;
 
+      console.log(`Render status (attempt ${attempts}):`, status);
+
       if (status === 'failed') {
-        throw new Error('Render job failed');
+        const error = statusData.response.error || 'Unknown Shotstack error';
+        console.error('Shotstack render failed:', error);
+        throw new Error(`Shotstack render failed: ${error}`);
       }
     }
 
-    if (!renderUrl) {
-      throw new Error('No render URL returned');
+    if (attempts >= maxAttempts) {
+      throw new Error('Render timeout - took too long to complete');
     }
+
+    if (!renderUrl) {
+      throw new Error('No render URL returned from Shotstack');
+    }
+
+    console.log('Render completed, downloading from:', renderUrl);
 
     const videoResponse = await fetch(renderUrl);
     if (!videoResponse.ok) {
-      throw new Error('Failed to download rendered video');
+      throw new Error(`Failed to download rendered video: ${videoResponse.status}`);
     }
 
     const videoBlob = await videoResponse.arrayBuffer();
-    const exportPath = `${clip.user_id}/${clip.id}_export.mp4`;
+    console.log('Video downloaded, size:', videoBlob.byteLength);
+
+    const exportPath = `${clip.user_id}/${clip.id}_export_${Date.now()}.mp4`;
 
     const { error: uploadError } = await supabase.storage
       .from('exports')
@@ -176,7 +255,12 @@ async function renderVideo(
         upsert: true,
       });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw new Error(`Failed to upload export: ${uploadError.message}`);
+    }
+
+    console.log('Export uploaded successfully to:', exportPath);
 
     return { fileSize: videoBlob.byteLength };
   } catch (err) {
@@ -189,43 +273,59 @@ function buildRenderSpecification(
   clip: any,
   stylePack: any,
   detections: any[],
+  captions: any,
+  processingOptions: any,
   settings: any
 ): any {
-  const config = stylePack.assets_config || {};
-  const highlightTimes = detections
-    .filter(d => d.confidence > 0.7)
-    .map(d => d.timestamp);
+  const config = stylePack?.assets_config || {};
+  const duration = clip.duration || 30;
+
+  const highConfidenceDetections = detections.filter(d => d.confidence > 0.7);
+
+  console.log('Building render spec with:', {
+    detections: highConfidenceDetections.length,
+    hasCaptions: !!captions,
+    processingOptions,
+    clipDuration: duration
+  });
 
   const clips = [];
-  const duration = clip.duration || 60;
 
-  if (highlightTimes.length > 0) {
-    for (const timestamp of highlightTimes.slice(0, 5)) {
-      const start = Math.max(0, timestamp - 3);
-      const length = 6;
+  if (highConfidenceDetections.length > 0) {
+    console.log('Using highlight-based editing');
+    for (const detection of highConfidenceDetections.slice(0, 5)) {
+      const start = Math.max(0, detection.timestamp - 2);
+      const length = 5;
 
-      clips.push({
-        asset: {
-          type: 'video',
-          src: clip.video_url,
-          trim: start,
-        },
-        start: clips.reduce((sum, c) => sum + (c.length || 0), 0),
-        length,
-        transition: {
-          in: 'fade',
-          out: 'fade',
-        },
-      });
+      if (start + length <= duration) {
+        clips.push({
+          asset: {
+            type: 'video',
+            src: clip.video_url,
+            trim: start,
+          },
+          start: clips.reduce((sum, c) => sum + (c.length || 0), 0),
+          length,
+          transition: {
+            in: 'fade',
+            out: 'fade',
+          },
+        });
+      }
     }
-  } else {
+  }
+
+  if (clips.length === 0) {
+    console.log('Using simple trim (no highlights or fallback)');
+    const trimDuration = Math.min(duration, 30);
     clips.push({
       asset: {
         type: 'video',
         src: clip.video_url,
+        trim: 0,
       },
       start: 0,
-      length: Math.min(duration, 30),
+      length: trimDuration,
     });
   }
 
@@ -235,7 +335,8 @@ function buildRenderSpecification(
     },
   ];
 
-  if (config.overlay_image) {
+  if (config.overlay_image && processingOptions?.add_overlay !== false) {
+    console.log('Adding overlay:', config.overlay_image);
     tracks.push({
       clips: [
         {
@@ -245,37 +346,52 @@ function buildRenderSpecification(
           },
           start: 0,
           length: clips.reduce((sum, c) => sum + (c.length || 0), 0),
-          opacity: 0.3,
+          opacity: 0.2,
           position: 'topRight',
         },
       ],
     });
   }
 
-  if (config.transition_style) {
-    tracks.push({
-      clips: detections.slice(0, 5).map((d, i) => ({
+  if (captions && processingOptions?.add_captions) {
+    console.log('Adding captions');
+    const captionData = typeof captions.content === 'string'
+      ? JSON.parse(captions.content)
+      : captions.content;
+
+    if (captionData?.words && Array.isArray(captionData.words)) {
+      const captionClips = captionData.words.slice(0, 20).map((word: any) => ({
         asset: {
           type: 'title',
-          text: d.detection_type.toUpperCase(),
-          style: 'future',
+          text: word.text || '',
+          style: 'blockbuster',
         },
-        start: clips[i]?.start || i * 6,
-        length: 1,
-        position: 'center',
-      })),
-    });
+        start: word.start || 0,
+        length: (word.end || word.start + 0.5) - (word.start || 0),
+        position: 'bottom',
+      }));
+
+      if (captionClips.length > 0) {
+        tracks.push({ clips: captionClips });
+      }
+    }
   }
+
+  const aspectRatio = processingOptions?.reframe ? '9:16' : '16:9';
 
   return {
     timeline: {
+      soundtrack: clip.audio_url ? {
+        src: clip.audio_url,
+        effect: 'fadeIn',
+      } : undefined,
       tracks,
     },
     output: {
       format: 'mp4',
-      resolution: settings.resolution || '1080',
-      fps: settings.fps || 60,
-      aspectRatio: '9:16',
+      resolution: settings?.resolution || 'hd',
+      fps: parseInt(settings?.fps) || 30,
+      aspectRatio,
     },
   };
 }
