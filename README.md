@@ -1,6 +1,12 @@
 # GamerClip AI
 
-A mobile app for gamers to import gaming clips, detect highlights using AI, and export edited videos with game-specific styles.
+A production-ready mobile app for gamers to import gaming clips, detect highlights using AI, and export edited videos with game-specific styles.
+
+## 🚀 Quick Start
+
+**All your API keys are ready!** See [SETUP_GUIDE.md](./SETUP_GUIDE.md) for complete configuration instructions.
+
+Your Supabase project: https://supabase.com/dashboard/project/nrcnnduqkelbojkxkjsg
 
 ## Features
 
