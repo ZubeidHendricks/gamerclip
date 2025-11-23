@@ -6,6 +6,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import * as DocumentPicker from 'expo-document-picker';
+import Logo from '@/components/Logo';
+import { Colors } from '@/constants/colors';
 
 export default function HomeScreen() {
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -177,8 +179,8 @@ export default function HomeScreen() {
         style={styles.gradient}>
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.logo}>GamerClip AI</Text>
-            <Text style={styles.tagline}>Turn streams into viral clips</Text>
+            <Logo size="large" showText={true} />
+            <Text style={styles.tagline}>Turn streams into viral clips with AI</Text>
           </View>
 
           <View style={styles.importSection}>
@@ -343,7 +345,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: Colors.background.primary,
   },
   gradient: {
     flex: 1,
@@ -352,59 +354,65 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 40,
     alignItems: 'center',
-  },
-  logo: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 8,
   },
   tagline: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    marginTop: 16,
+    fontWeight: '500',
   },
   importSection: {
     marginBottom: 32,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: Colors.text.primary,
     marginBottom: 16,
+    letterSpacing: 0.5,
   },
   importCard: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: 16,
+    padding: 18,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    shadowColor: Colors.shadow.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: '#0f172a',
+    width: 60,
+    height: 60,
+    borderRadius: 14,
+    backgroundColor: Colors.background.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+    borderWidth: 1,
+    borderColor: Colors.border.dark,
   },
   cardContent: {
     flex: 1,
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: Colors.text.primary,
     marginBottom: 4,
+    letterSpacing: 0.3,
   },
   cardDescription: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
     lineHeight: 20,
   },
   statsSection: {
@@ -413,23 +421,29 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: 16,
     padding: 20,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    shadowColor: Colors.shadow.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   statNumber: {
     fontSize: 36,
-    fontWeight: '700',
-    color: '#10b981',
+    fontWeight: '800',
+    color: Colors.brand.primary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
     textAlign: 'center',
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
@@ -439,13 +453,18 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: 20,
     padding: 24,
     width: '100%',
     maxWidth: 400,
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    shadowColor: Colors.shadow.dark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -455,23 +474,24 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '800',
+    color: Colors.text.primary,
+    letterSpacing: 0.5,
   },
   modalDescription: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
     marginBottom: 20,
     lineHeight: 20,
   },
   modalInput: {
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 8,
+    backgroundColor: Colors.background.primary,
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#ffffff',
+    color: Colors.text.primary,
     marginBottom: 24,
   },
   modalButtons: {
@@ -480,25 +500,32 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#334155',
+    backgroundColor: Colors.background.tertiary,
+    borderWidth: 1.5,
+    borderColor: Colors.border.medium,
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#e2e8f0',
+    fontWeight: '700',
+    color: Colors.text.primary,
   },
   importButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: Colors.brand.primary,
+    shadowColor: Colors.shadow.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   importButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: Colors.text.primary,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -507,35 +534,38 @@ const styles = StyleSheet.create({
     maxHeight: 400,
   },
   streamCard: {
-    backgroundColor: '#0f172a',
-    borderRadius: 8,
+    backgroundColor: Colors.background.primary,
+    borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
   },
   streamIcon: {
     width: 48,
     height: 48,
-    borderRadius: 8,
-    backgroundColor: '#1e293b',
+    borderRadius: 10,
+    backgroundColor: Colors.background.secondary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border.dark,
   },
   streamInfo: {
     flex: 1,
   },
   streamTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: Colors.text.primary,
     marginBottom: 4,
   },
   streamMeta: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
+    fontWeight: '500',
   },
 });

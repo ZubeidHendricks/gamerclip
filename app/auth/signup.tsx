@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, Link } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import Logo from '@/components/Logo';
+import { Colors } from '@/constants/colors';
 
 export default function SignUpScreen() {
   const [username, setUsername] = useState('');
@@ -65,7 +67,9 @@ export default function SignUpScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}>
           <ScrollView contentContainerStyle={styles.content}>
-            <Text style={styles.logo}>GamerClip AI</Text>
+            <View style={styles.logoContainer}>
+              <Logo size="large" showText={true} />
+            </View>
             <Text style={styles.subtitle}>Create your account</Text>
 
             {error ? (
@@ -151,7 +155,7 @@ export default function SignUpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: Colors.background.primary,
   },
   gradient: {
     flex: 1,
@@ -164,30 +168,29 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'center',
   },
-  logo: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 8,
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
   },
   subtitle: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
     textAlign: 'center',
     marginBottom: 40,
+    fontWeight: '500',
   },
   errorContainer: {
-    backgroundColor: '#7f1d1d',
-    borderWidth: 1,
-    borderColor: '#ef4444',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1.5,
+    borderColor: Colors.status.error,
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 20,
   },
   errorText: {
     color: '#fca5a5',
     fontSize: 14,
+    fontWeight: '500',
   },
   form: {
     width: '100%',
@@ -197,33 +200,40 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#e2e8f0',
+    fontWeight: '700',
+    color: Colors.text.primary,
     marginBottom: 8,
+    letterSpacing: 0.3,
   },
   input: {
-    backgroundColor: '#1e293b',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 8,
+    backgroundColor: Colors.background.secondary,
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#ffffff',
+    color: Colors.text.primary,
   },
   button: {
-    backgroundColor: '#10b981',
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: Colors.brand.primary,
+    borderRadius: 12,
+    padding: 18,
     alignItems: 'center',
     marginTop: 8,
+    shadowColor: Colors.shadow.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: Colors.text.primary,
+    letterSpacing: 0.5,
   },
   footer: {
     flexDirection: 'row',
@@ -232,13 +242,14 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
+    fontWeight: '500',
   },
   link: {
     fontSize: 14,
   },
   linkText: {
-    color: '#10b981',
-    fontWeight: '600',
+    color: Colors.brand.primary,
+    fontWeight: '700',
   },
 });

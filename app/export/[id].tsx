@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Sparkles, Check, Download } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { Colors } from '@/constants/colors';
 
 type StylePack = {
   id: string;
@@ -411,7 +412,7 @@ export default function ExportScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: Colors.background.primary,
   },
   gradient: {
     flex: 1,
@@ -432,8 +433,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: Colors.text.primary,
+    letterSpacing: 0.3,
   },
   content: {
     padding: 20,
@@ -449,22 +451,25 @@ const styles = StyleSheet.create({
   },
   clipTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '800',
+    color: Colors.text.primary,
+    letterSpacing: 0.5,
   },
   section: {
     marginBottom: 32,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: Colors.text.primary,
     marginBottom: 8,
+    letterSpacing: 0.3,
   },
   sectionDescription: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
     marginBottom: 16,
+    fontWeight: '500',
   },
   packsGrid: {
     flexDirection: 'row',
@@ -473,15 +478,22 @@ const styles = StyleSheet.create({
   },
   packCard: {
     width: '48%',
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    shadowColor: Colors.shadow.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   packCardSelected: {
-    borderColor: '#10b981',
-    borderWidth: 2,
+    borderColor: Colors.brand.primary,
+    borderWidth: 2.5,
+    shadowColor: Colors.shadow.primary,
+    shadowOpacity: 0.4,
   },
   packThumbnail: {
     height: 100,
@@ -493,9 +505,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: '#10b981',
+    backgroundColor: Colors.brand.primary,
     borderRadius: 12,
     padding: 4,
+    shadowColor: Colors.shadow.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 3,
   },
   premiumBadge: {
     position: 'absolute',

@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
+import { Colors } from '@/constants/colors';
 
 type Clip = {
   id: string;
@@ -99,13 +100,13 @@ export default function LibraryScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return '#10b981';
+        return Colors.status.success;
       case 'processing':
-        return '#3b82f6';
+        return Colors.status.info;
       case 'failed':
-        return '#ef4444';
+        return Colors.status.error;
       default:
-        return '#6b7280';
+        return Colors.text.muted;
     }
   };
 
@@ -200,7 +201,7 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: Colors.background.primary,
   },
   gradient: {
     flex: 1,
@@ -213,13 +214,15 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '800',
+    color: Colors.text.primary,
     marginBottom: 4,
+    letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
+    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
@@ -228,7 +231,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
+    fontWeight: '500',
   },
   emptyState: {
     alignItems: 'center',
@@ -239,20 +243,23 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#1e293b',
+    backgroundColor: Colors.background.secondary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
   },
   emptyTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '800',
+    color: Colors.text.primary,
     marginBottom: 8,
+    letterSpacing: 0.5,
   },
   emptyDescription: {
     fontSize: 16,
-    color: '#64748b',
+    color: Colors.text.secondary,
     textAlign: 'center',
   },
   clipsGrid: {
@@ -262,15 +269,20 @@ const styles = StyleSheet.create({
   },
   clipCard: {
     width: '48%',
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    shadowColor: Colors.shadow.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   clipThumbnail: {
     height: 120,
-    backgroundColor: '#0f172a',
+    backgroundColor: Colors.background.primary,
     position: 'relative',
   },
   thumbnailPlaceholder: {
@@ -282,23 +294,29 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    shadowColor: Colors.shadow.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: Colors.text.primary,
     textTransform: 'capitalize',
+    letterSpacing: 0.5,
   },
   clipInfo: {
     padding: 12,
   },
   clipTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: Colors.text.primary,
     marginBottom: 8,
   },
   clipMeta: {
@@ -308,8 +326,9 @@ const styles = StyleSheet.create({
   },
   sourceType: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
     textTransform: 'capitalize',
+    fontWeight: '600',
   },
   durationContainer: {
     flexDirection: 'row',
@@ -318,6 +337,7 @@ const styles = StyleSheet.create({
   },
   duration: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: Colors.text.secondary,
+    fontWeight: '600',
   },
 });
