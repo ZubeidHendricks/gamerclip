@@ -12,8 +12,9 @@ import { Video, Clock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '@/constants/colors';
+import { useCallback } from 'react';
 
 type Clip = {
   id: string;
@@ -31,8 +32,16 @@ export default function LibraryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchClips();
+    }, [user])
+  );
+
   useEffect(() => {
-    fetchClips();
+    if (!user?.id) return;
+
+    console.log('Setting up real-time subscription for user:', user.id);
 
     const channel = supabase
       .channel('library-clips')
@@ -42,28 +51,36 @@ export default function LibraryScreen() {
           event: '*',
           schema: 'public',
           table: 'clips',
-          filter: `user_id=eq.${user?.id}`,
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
+          console.log('Real-time event received:', payload.eventType, payload);
+
           if (payload.eventType === 'INSERT') {
+            console.log('Adding new clip to library');
             setClips((prev) => [payload.new as Clip, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
+            console.log('Updating clip in library');
             setClips((prev) =>
               prev.map((clip) =>
                 clip.id === payload.new.id ? (payload.new as Clip) : clip
               )
             );
           } else if (payload.eventType === 'DELETE') {
+            console.log('Removing clip from library:', payload.old.id);
             setClips((prev) => prev.filter((clip) => clip.id !== payload.old.id));
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
 
     return () => {
+      console.log('Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user?.id]);
 
   const fetchClips = async () => {
     try {
