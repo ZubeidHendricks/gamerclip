@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Platform, Linking } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
-import { Play, Pause } from 'lucide-react-native';
+import { Play, Pause, ExternalLink } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 
 type VideoPlayerProps = {
@@ -35,18 +35,21 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
     setIsTwitchEmbed(true);
 
     if (Platform.OS === 'web') {
+      const hostname = window.location.hostname;
+      const parent = hostname === 'localhost' ? 'localhost' : hostname;
+
       const clipMatch = url.match(/clip\/([A-Za-z0-9_-]+)/);
       if (clipMatch) {
         const clipId = clipMatch[1];
         setTwitchEmbedUrl(
-          `https://clips.twitch.tv/embed?clip=${clipId}&parent=${window.location.hostname}&autoplay=false`
+          `https://clips.twitch.tv/embed?clip=${clipId}&parent=${parent}&autoplay=false&muted=false`
         );
       } else {
         const vodMatch = url.match(/videos\/(\d+)/);
         if (vodMatch) {
           const vodId = vodMatch[1];
           setTwitchEmbedUrl(
-            `https://player.twitch.tv/?video=${vodId}&parent=${window.location.hostname}&autoplay=false`
+            `https://player.twitch.tv/?video=${vodId}&parent=${parent}&autoplay=false&muted=false`
           );
         }
       }
@@ -116,8 +119,8 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
     );
   }
 
-  if (isTwitchEmbed && twitchEmbedUrl) {
-    if (Platform.OS === 'web') {
+  if (isTwitchEmbed && videoUrl) {
+    if (Platform.OS === 'web' && twitchEmbedUrl) {
       return (
         <View style={[styles.container, style]}>
           <iframe
@@ -133,15 +136,22 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
       );
     }
 
-    const { WebView } = require('react-native-webview');
     return (
-      <View style={[styles.container, style]}>
-        <WebView
-          source={{ uri: twitchEmbedUrl }}
-          style={styles.video}
-          allowsFullscreenVideo
-          mediaPlaybackRequiresUserAction={false}
-        />
+      <View style={[styles.twitchFallback, style]}>
+        <View style={styles.twitchIcon}>
+          <ExternalLink size={48} color="#9147ff" />
+        </View>
+        <Text style={styles.twitchTitle}>Twitch Content</Text>
+        <Text style={styles.twitchDescription}>
+          Twitch videos can't be embedded in this environment
+        </Text>
+        <TouchableOpacity
+          style={styles.twitchButton}
+          onPress={() => Linking.openURL(videoUrl)}
+          activeOpacity={0.8}>
+          <ExternalLink size={20} color="#ffffff" />
+          <Text style={styles.twitchButtonText}>Open in Twitch</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -155,6 +165,9 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
     );
   }
 
+  console.log('Rendering video with URL:', signedUrl);
+  console.log('Platform:', Platform.OS);
+
   return (
     <View style={[styles.container, style]}>
       <Video
@@ -162,9 +175,12 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
         source={{ uri: signedUrl }}
         style={styles.video}
         resizeMode={ResizeMode.CONTAIN}
+        shouldPlay={false}
+        isLooping={false}
         onPlaybackStatusUpdate={(status) => {
           if ('isLoaded' in status) {
             if (status.isLoaded) {
+              console.log('Video loaded successfully');
               setIsPlaying(status.isPlaying);
               setError(null);
             } else if (status.error) {
@@ -176,6 +192,9 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
         onError={(error) => {
           console.error('Video error:', error);
           setError(`Failed to load video: ${error}`);
+        }}
+        onLoad={() => {
+          console.log('Video onLoad event fired');
         }}
         useNativeControls={Platform.OS !== 'web'}
       />
@@ -249,5 +268,50 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  twitchFallback: {
+    width: '100%',
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  twitchIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#0f172a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  twitchTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 8,
+  },
+  twitchDescription: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  twitchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#9147ff',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  twitchButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
   },
 });
