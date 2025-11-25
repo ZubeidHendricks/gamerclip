@@ -55,9 +55,19 @@ export default function HomeScreen() {
         throw new Error(result.error || 'Failed to import clip');
       }
 
-      Alert.alert('Success', 'Clip import started! Check your library.');
-      setShowLinkModal(false);
-      setLinkUrl('');
+      Alert.alert(
+        'Import Started',
+        `Your ${sourceType === 'twitch' ? 'Twitch' : 'Kick'} clip has been imported successfully! ${sourceType === 'twitch' ? 'You can view it now in your library.' : 'AI processing will analyze the video for highlights.'}`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowLinkModal(false);
+              setLinkUrl('');
+            }
+          }
+        ]
+      );
     } catch (err: any) {
       console.error('Import error:', err);
       Alert.alert('Error', err.message || 'Failed to import clip');
@@ -129,7 +139,14 @@ export default function HomeScreen() {
         ).catch(err => console.error('Failed to trigger processing:', err));
       }
 
-      Alert.alert('Success', 'Video uploaded! Processing will begin shortly.');
+      Alert.alert(
+        'Upload Complete',
+        'Your video has been uploaded successfully! AI is now analyzing it to detect highlights. Check your library to see the progress.',
+        [
+          { text: 'View Library', onPress: () => {} },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
     } catch (err: any) {
       console.error('Upload error:', err);
       Alert.alert('Error', err.message || 'Failed to upload video');
@@ -204,14 +221,15 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.importCard}
               onPress={handleUpload}
+              disabled={uploading}
               activeOpacity={0.7}>
               <View style={styles.iconContainer}>
                 <Upload size={32} color="#3b82f6" />
               </View>
               <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Upload Video</Text>
+                <Text style={styles.cardTitle}>{uploading ? 'Uploading...' : 'Upload Video'}</Text>
                 <Text style={styles.cardDescription}>
-                  Import directly from your device
+                  {uploading ? 'Please wait while we upload your video' : 'Import directly from your device'}
                 </Text>
               </View>
             </TouchableOpacity>

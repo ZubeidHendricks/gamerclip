@@ -89,15 +89,20 @@ export default function ClipDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              if (!user?.id) {
+                Alert.alert('Error', 'User not authenticated');
+                return;
+              }
+
               const { error } = await supabase
                 .from('clips')
                 .delete()
-                .eq('id', id);
+                .eq('id', id)
+                .eq('user_id', user.id);
 
               if (error) throw error;
 
-              Alert.alert('Success', 'Clip deleted');
-              router.back();
+              router.replace('/(tabs)/library');
             } catch (err) {
               console.error('Delete error:', err);
               Alert.alert('Error', 'Failed to delete clip');
