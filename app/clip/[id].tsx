@@ -94,9 +94,12 @@ export default function ClipDetailScreen() {
                 return;
               }
 
+              console.log('Deleting clip:', id, 'for user:', user.id);
+
               if (clip.video_url && clip.source_type === 'upload') {
                 const pathMatch = clip.video_url.match(/clips\/(.+)$/);
                 if (pathMatch) {
+                  console.log('Removing video file:', pathMatch[1]);
                   await supabase.storage
                     .from('clips')
                     .remove([pathMatch[1]])
@@ -107,6 +110,7 @@ export default function ClipDetailScreen() {
               if (clip.thumbnail_url && clip.thumbnail_url.includes('storage/v1/object/public/thumbnails/')) {
                 const thumbMatch = clip.thumbnail_url.match(/thumbnails\/(.+)$/);
                 if (thumbMatch) {
+                  console.log('Removing thumbnail:', thumbMatch[1]);
                   await supabase.storage
                     .from('thumbnails')
                     .remove([thumbMatch[1]])
@@ -114,18 +118,29 @@ export default function ClipDetailScreen() {
                 }
               }
 
-              const { error } = await supabase
+              console.log('Deleting clip from database...');
+              const { error, data } = await supabase
                 .from('clips')
                 .delete()
                 .eq('id', id)
-                .eq('user_id', user.id);
+                .eq('user_id', user.id)
+                .select();
 
-              if (error) throw error;
+              console.log('Delete result:', { error, data });
 
-              router.replace('/(tabs)/library');
-            } catch (err) {
+              if (error) {
+                console.error('Delete error details:', error);
+                throw error;
+              }
+
+              if (!data || data.length === 0) {
+                throw new Error('Clip not found or already deleted');
+              }
+
+              router.back();
+            } catch (err: any) {
               console.error('Delete error:', err);
-              Alert.alert('Error', 'Failed to delete clip');
+              Alert.alert('Error', err.message || 'Failed to delete clip');
             }
           },
         },
