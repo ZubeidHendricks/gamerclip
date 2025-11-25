@@ -81,7 +81,7 @@ export default function ClipDetailScreen() {
   const handleDelete = () => {
     Alert.alert(
       'Delete Clip',
-      'Are you sure you want to delete this clip?',
+      'Are you sure you want to delete this clip? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -89,9 +89,29 @@ export default function ClipDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              if (!user?.id) {
-                Alert.alert('Error', 'User not authenticated');
+              if (!user?.id || !clip) {
+                Alert.alert('Error', 'Unable to delete clip');
                 return;
+              }
+
+              if (clip.video_url && clip.source_type === 'upload') {
+                const pathMatch = clip.video_url.match(/clips\/(.+)$/);
+                if (pathMatch) {
+                  await supabase.storage
+                    .from('clips')
+                    .remove([pathMatch[1]])
+                    .catch(err => console.error('Storage delete error:', err));
+                }
+              }
+
+              if (clip.thumbnail_url && clip.thumbnail_url.includes('storage/v1/object/public/thumbnails/')) {
+                const thumbMatch = clip.thumbnail_url.match(/thumbnails\/(.+)$/);
+                if (thumbMatch) {
+                  await supabase.storage
+                    .from('thumbnails')
+                    .remove([thumbMatch[1]])
+                    .catch(err => console.error('Thumbnail delete error:', err));
+                }
               }
 
               const { error } = await supabase

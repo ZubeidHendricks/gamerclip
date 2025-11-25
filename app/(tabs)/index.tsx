@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, Upload, Video, X } from 'lucide-react-native';
@@ -15,7 +15,39 @@ export default function HomeScreen() {
   const [linkUrl, setLinkUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [clipsProcessed, setClipsProcessed] = useState(0);
+  const [exportsCount, setExportsCount] = useState(0);
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      fetchStats();
+    }
+  }, [user]);
+
+  const fetchStats = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { count: completedCount } = await supabase
+        .from('clips')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('status', 'completed');
+
+      setClipsProcessed(completedCount || 0);
+
+      const { count: exportsThisMonth } = await supabase
+        .from('exports')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString());
+
+      setExportsCount(exportsThisMonth || 0);
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+    }
+  };
 
   const handleLinkImport = async () => {
     if (!linkUrl.trim()) {
@@ -64,6 +96,9 @@ export default function HomeScreen() {
             onPress: () => {
               setShowLinkModal(false);
               setLinkUrl('');
+              if (sourceType === 'twitch') {
+                fetchStats();
+              }
             }
           }
         ]
@@ -252,11 +287,11 @@ export default function HomeScreen() {
 
           <View style={styles.statsSection}>
             <View style={styles.statCard}>
-              <Text style={styles.statNumber}>0</Text>
+              <Text style={styles.statNumber}>{clipsProcessed}</Text>
               <Text style={styles.statLabel}>Clips Processed</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statNumber}>0</Text>
+              <Text style={styles.statNumber}>{exportsCount}</Text>
               <Text style={styles.statLabel}>Exports This Month</Text>
             </View>
           </View>
