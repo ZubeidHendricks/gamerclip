@@ -129,16 +129,33 @@ export default function HomeScreen() {
       const fileName = file.name || `upload_${Date.now()}.mp4`;
       const filePath = `${user?.id}/${generateUUID()}.mp4`;
 
-      const fileBlob = await fetch(file.uri).then(r => r.blob());
+      const formData = new FormData();
+      formData.append('file', {
+        uri: file.uri,
+        type: file.mimeType || 'video/mp4',
+        name: fileName,
+      } as any);
 
-      const { error: uploadError } = await supabase.storage
-        .from('clips')
-        .upload(filePath, fileBlob, {
-          contentType: file.mimeType || 'video/mp4',
-          upsert: false,
-        });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
 
-      if (uploadError) throw uploadError;
+      const uploadResponse = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/clips/${filePath}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.message || 'Upload failed');
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('clips')
@@ -160,20 +177,17 @@ export default function HomeScreen() {
 
       if (insertError) throw insertError;
 
-      const { data: session } = await supabase.auth.getSession();
-      if (session?.session?.access_token) {
-        fetch(
-          `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/process-ai-detection`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ clip_id: clipId }),
-          }
-        ).catch(err => console.error('Failed to trigger processing:', err));
-      }
+      fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/process-ai-detection`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ clip_id: clipId }),
+        }
+      ).catch(err => console.error('Failed to trigger processing:', err));
 
       Alert.alert(
         'Upload Complete',
