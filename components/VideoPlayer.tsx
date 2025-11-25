@@ -15,6 +15,7 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
   const [showControls, setShowControls] = useState(true);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isTwitchEmbed, setIsTwitchEmbed] = useState(false);
   const [twitchEmbedUrl, setTwitchEmbedUrl] = useState<string | null>(null);
 
@@ -33,20 +34,24 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
   const handleTwitchUrl = (url: string) => {
     setIsTwitchEmbed(true);
 
-    const clipMatch = url.match(/clip\/([A-Za-z0-9_-]+)/);
-    if (clipMatch) {
-      const clipId = clipMatch[1];
-      setTwitchEmbedUrl(
-        `https://clips.twitch.tv/embed?clip=${clipId}&parent=${window.location.hostname}&autoplay=false`
-      );
-    } else {
-      const vodMatch = url.match(/videos\/(\d+)/);
-      if (vodMatch) {
-        const vodId = vodMatch[1];
+    if (Platform.OS === 'web') {
+      const clipMatch = url.match(/clip\/([A-Za-z0-9_-]+)/);
+      if (clipMatch) {
+        const clipId = clipMatch[1];
         setTwitchEmbedUrl(
-          `https://player.twitch.tv/?video=${vodId}&parent=${window.location.hostname}&autoplay=false`
+          `https://clips.twitch.tv/embed?clip=${clipId}&parent=${window.location.hostname}&autoplay=false`
         );
+      } else {
+        const vodMatch = url.match(/videos\/(\d+)/);
+        if (vodMatch) {
+          const vodId = vodMatch[1];
+          setTwitchEmbedUrl(
+            `https://player.twitch.tv/?video=${vodId}&parent=${window.location.hostname}&autoplay=false`
+          );
+        }
       }
+    } else {
+      setTwitchEmbedUrl(url);
     }
 
     setLoading(false);
@@ -54,24 +59,14 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
 
   const getSignedUrl = async (url: string) => {
     try {
-      if (url.includes('storage/v1/object/public/clips/')) {
-        const pathMatch = url.match(/public\/clips\/(.+)/);
-        if (pathMatch) {
-          const filePath = pathMatch[1];
-          const { data, error } = await supabase.storage
-            .from('clips')
-            .createSignedUrl(filePath, 3600);
+      console.log('Processing video URL:', url);
+      console.log('Platform:', Platform.OS);
 
-          if (error) {
-            console.error('Error creating signed URL:', error);
-            setSignedUrl(url);
-          } else {
-            setSignedUrl(data.signedUrl);
-          }
-        } else {
-          setSignedUrl(url);
-        }
+      if (url.includes('storage/v1/object/public/clips/')) {
+        console.log('URL is from Supabase storage');
+        setSignedUrl(url);
       } else {
+        console.log('Using URL directly');
         setSignedUrl(url);
       }
     } catch (err) {
@@ -98,6 +93,16 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
     return (
       <View style={[styles.placeholder, style]}>
         <Text style={styles.placeholderText}>Loading video...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.placeholder, style]}>
+        <Play size={48} color="#ef4444" />
+        <Text style={styles.placeholderText}>Video Error</Text>
+        <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
@@ -158,14 +163,24 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
         style={styles.video}
         resizeMode={ResizeMode.CONTAIN}
         onPlaybackStatusUpdate={(status) => {
-          if (status.isLoaded) {
-            setIsPlaying(status.isPlaying);
+          if ('isLoaded' in status) {
+            if (status.isLoaded) {
+              setIsPlaying(status.isPlaying);
+              setError(null);
+            } else if (status.error) {
+              console.error('Video playback error:', status.error);
+              setError(`Playback error: ${status.error}`);
+            }
           }
         }}
-        useNativeControls={false}
+        onError={(error) => {
+          console.error('Video error:', error);
+          setError(`Failed to load video: ${error}`);
+        }}
+        useNativeControls={Platform.OS !== 'web'}
       />
 
-      {showControls && (
+      {Platform.OS === 'web' && showControls && (
         <TouchableOpacity
           style={styles.controlsOverlay}
           onPress={handlePlayPause}
@@ -209,6 +224,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#64748b',
     marginTop: 12,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   controlsOverlay: {
     position: 'absolute',
