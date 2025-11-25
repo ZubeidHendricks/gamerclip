@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,6 +34,8 @@ export default function ClipDetailScreen() {
   const [clip, setClip] = useState<Clip | null>(null);
   const [detections, setDetections] = useState<AIDetection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -80,73 +82,67 @@ export default function ClipDetailScreen() {
 
   const handleDelete = () => {
     console.log('handleDelete called!');
-    Alert.alert(
-      'Delete Clip',
-      'Are you sure you want to delete this clip? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              if (!user?.id || !clip) {
-                Alert.alert('Error', 'Unable to delete clip');
-                return;
-              }
+    setShowDeleteConfirm(true);
+  };
 
-              console.log('Deleting clip:', id, 'for user:', user.id);
+  const confirmDelete = async () => {
+    try {
+      if (!user?.id || !clip) {
+        alert('Unable to delete clip');
+        return;
+      }
 
-              if (clip.video_url && clip.source_type === 'upload') {
-                const pathMatch = clip.video_url.match(/clips\/(.+)$/);
-                if (pathMatch) {
-                  console.log('Removing video file:', pathMatch[1]);
-                  await supabase.storage
-                    .from('clips')
-                    .remove([pathMatch[1]])
-                    .catch(err => console.error('Storage delete error:', err));
-                }
-              }
+      setIsDeleting(true);
+      console.log('Deleting clip:', id, 'for user:', user.id);
 
-              if (clip.thumbnail_url && clip.thumbnail_url.includes('storage/v1/object/public/thumbnails/')) {
-                const thumbMatch = clip.thumbnail_url.match(/thumbnails\/(.+)$/);
-                if (thumbMatch) {
-                  console.log('Removing thumbnail:', thumbMatch[1]);
-                  await supabase.storage
-                    .from('thumbnails')
-                    .remove([thumbMatch[1]])
-                    .catch(err => console.error('Thumbnail delete error:', err));
-                }
-              }
+      if (clip.video_url && clip.source_type === 'upload') {
+        const pathMatch = clip.video_url.match(/clips\/(.+)$/);
+        if (pathMatch) {
+          console.log('Removing video file:', pathMatch[1]);
+          await supabase.storage
+            .from('clips')
+            .remove([pathMatch[1]])
+            .catch(err => console.error('Storage delete error:', err));
+        }
+      }
 
-              console.log('Deleting clip from database...');
-              const { error, data } = await supabase
-                .from('clips')
-                .delete()
-                .eq('id', id)
-                .eq('user_id', user.id)
-                .select();
+      if (clip.thumbnail_url && clip.thumbnail_url.includes('storage/v1/object/public/thumbnails/')) {
+        const thumbMatch = clip.thumbnail_url.match(/thumbnails\/(.+)$/);
+        if (thumbMatch) {
+          console.log('Removing thumbnail:', thumbMatch[1]);
+          await supabase.storage
+            .from('thumbnails')
+            .remove([thumbMatch[1]])
+            .catch(err => console.error('Thumbnail delete error:', err));
+        }
+      }
 
-              console.log('Delete result:', { error, data });
+      console.log('Deleting clip from database...');
+      const { error, data } = await supabase
+        .from('clips')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select();
 
-              if (error) {
-                console.error('Delete error details:', error);
-                throw error;
-              }
+      console.log('Delete result:', { error, data });
 
-              if (!data || data.length === 0) {
-                throw new Error('Clip not found or already deleted');
-              }
+      if (error) {
+        console.error('Delete error details:', error);
+        throw error;
+      }
 
-              router.back();
-            } catch (err: any) {
-              console.error('Delete error:', err);
-              Alert.alert('Error', err.message || 'Failed to delete clip');
-            }
-          },
-        },
-      ]
-    );
+      if (!data || data.length === 0) {
+        throw new Error('Clip not found or already deleted');
+      }
+
+      setShowDeleteConfirm(false);
+      router.back();
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      alert(err.message || 'Failed to delete clip');
+      setIsDeleting(false);
+    }
   };
 
   const handleExport = () => {
@@ -215,11 +211,8 @@ export default function ClipDetailScreen() {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Clip Details</Text>
           <TouchableOpacity
-            style={[styles.headerButton, { backgroundColor: 'rgba(255,0,0,0.1)' }]}
-            onPress={() => {
-              console.log('DELETE BUTTON PRESSED!');
-              handleDelete();
-            }}
+            style={styles.headerButton}
+            onPress={handleDelete}
             activeOpacity={0.7}>
             <Trash2 size={24} color="#ef4444" />
           </TouchableOpacity>
@@ -286,6 +279,37 @@ export default function ClipDetailScreen() {
           </View>
         </ScrollView>
       </LinearGradient>
+
+      <Modal
+        visible={showDeleteConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirm(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Delete Clip</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to delete this clip? This action cannot be undone.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}>
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonDelete]}
+                onPress={confirmDelete}
+                disabled={isDeleting}>
+                <Text style={styles.modalButtonTextDelete}>
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -463,6 +487,62 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 12,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#94a3b8',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#334155',
+  },
+  modalButtonDelete: {
+    backgroundColor: '#ef4444',
+  },
+  modalButtonTextCancel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  modalButtonTextDelete: {
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
