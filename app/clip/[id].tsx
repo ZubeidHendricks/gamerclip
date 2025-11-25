@@ -79,6 +79,7 @@ export default function ClipDetailScreen() {
   };
 
   const handleDelete = () => {
+    console.log('handleDelete called!');
     Alert.alert(
       'Delete Clip',
       'Are you sure you want to delete this clip? This action cannot be undone.',
@@ -214,8 +215,12 @@ export default function ClipDetailScreen() {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Clip Details</Text>
           <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleDelete}>
+            style={[styles.headerButton, { backgroundColor: 'rgba(255,0,0,0.1)' }]}
+            onPress={() => {
+              console.log('DELETE BUTTON PRESSED!');
+              handleDelete();
+            }}
+            activeOpacity={0.7}>
             <Trash2 size={24} color="#ef4444" />
           </TouchableOpacity>
         </View>
