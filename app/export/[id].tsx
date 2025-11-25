@@ -7,6 +7,7 @@ import { ArrowLeft, Sparkles, Check, Download } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
+import { generateUUID } from '@/lib/uuid';
 
 type StylePack = {
   id: string;
@@ -95,7 +96,7 @@ export default function ExportScreen() {
     try {
       setExporting(true);
 
-      const exportId = crypto.randomUUID();
+      const exportId = generateUUID();
 
       const { error } = await supabase
         .from('exports')

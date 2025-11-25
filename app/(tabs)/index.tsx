@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import * as DocumentPicker from 'expo-document-picker';
 import Logo from '@/components/Logo';
 import { Colors } from '@/constants/colors';
+import { generateUUID } from '@/lib/uuid';
 
 export default function HomeScreen() {
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -126,7 +127,7 @@ export default function HomeScreen() {
 
       const file = result.assets[0];
       const fileName = file.name || `upload_${Date.now()}.mp4`;
-      const filePath = `${user?.id}/${crypto.randomUUID()}.mp4`;
+      const filePath = `${user?.id}/${generateUUID()}.mp4`;
 
       const fileBlob = await fetch(file.uri).then(r => r.blob());
 
@@ -143,7 +144,7 @@ export default function HomeScreen() {
         .from('clips')
         .getPublicUrl(filePath);
 
-      const clipId = crypto.randomUUID();
+      const clipId = generateUUID();
 
       const { error: insertError } = await supabase
         .from('clips')
