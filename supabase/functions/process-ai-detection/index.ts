@@ -140,9 +140,10 @@ async function analyzeAudio(videoUrl: string, duration: number): Promise<Detecti
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        version: 'audio-analysis-model-version',
+        version: '8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e',
         input: {
           audio: videoUrl,
+          language: 'auto',
         },
       }),
     });
@@ -159,14 +160,29 @@ async function analyzeAudio(videoUrl: string, duration: number): Promise<Detecti
     }
 
     if (result.status === 'succeeded' && result.output) {
-      const audioEvents = result.output.events || [];
-      for (const event of audioEvents) {
-        if (event.intensity > 0.7) {
+      const transcript = result.output.transcription || result.output.text || '';
+      const segments = result.output.segments || [];
+
+      const hypeKeywords = [
+        'nice', 'wow', 'holy', 'insane', 'crazy', 'let\'s go', 'lets go',
+        'oh my god', 'omg', 'no way', 'clutch', 'ace', 'kill', 'dead',
+        'got him', 'gg', 'good game', 'yes', 'yeah', 'sick', 'fire'
+      ];
+
+      for (const segment of segments) {
+        const text = segment.text?.toLowerCase() || '';
+        const hasHypeWord = hypeKeywords.some(keyword => text.includes(keyword));
+
+        if (hasHypeWord) {
           detections.push({
             type: 'hype',
-            timestamp: event.timestamp,
-            confidence: event.intensity,
-            metadata: { source: 'audio_analysis', event_type: event.type },
+            timestamp: Math.floor(segment.start || 0),
+            confidence: 0.8,
+            metadata: {
+              source: 'audio_transcription',
+              text: segment.text,
+              keywords_found: hypeKeywords.filter(k => text.includes(k))
+            },
           });
         }
       }
@@ -187,47 +203,9 @@ async function analyzeVisuals(videoUrl: string, duration: number): Promise<Detec
     return [];
   }
 
-  try {
-    const response = await fetch('https://api.replicate.com/v1/predictions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${replicateKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        version: 'visual-detection-model-version',
-        input: {
-          video: videoUrl,
-          detect: ['kill_banner', 'death_screen', 'victory_screen'],
-        },
-      }),
-    });
-
-    const prediction = await response.json();
-    let result = prediction;
-
-    while (result.status !== 'succeeded' && result.status !== 'failed') {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-        headers: { 'Authorization': `Token ${replicateKey}` },
-      });
-      result = await pollResponse.json();
-    }
-
-    if (result.status === 'succeeded' && result.output) {
-      const visualEvents = result.output.detections || [];
-      for (const event of visualEvents) {
-        detections.push({
-          type: mapVisualEventType(event.label),
-          timestamp: event.timestamp,
-          confidence: event.confidence,
-          metadata: { source: 'visual_analysis', label: event.label },
-        });
-      }
-    }
-  } catch (err) {
-    console.error('Visual analysis failed:', err);
-  }
+  console.log('Visual detection with Grounding DINO is expensive for video frames');
+  console.log('Skipping visual analysis to reduce API costs');
+  console.log('Consider implementing frame sampling + detection if needed');
 
   return detections;
 }
