@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
-import { WebView } from 'react-native-webview';
 import { Play, Pause } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 
@@ -113,6 +112,23 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
   }
 
   if (isTwitchEmbed && twitchEmbedUrl) {
+    if (Platform.OS === 'web') {
+      return (
+        <View style={[styles.container, style]}>
+          <iframe
+            src={twitchEmbedUrl}
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none',
+            }}
+            allowFullScreen
+          />
+        </View>
+      );
+    }
+
+    const { WebView } = require('react-native-webview');
     return (
       <View style={[styles.container, style]}>
         <WebView

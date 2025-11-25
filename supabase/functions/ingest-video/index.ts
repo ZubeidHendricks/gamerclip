@@ -67,6 +67,8 @@ Deno.serve(async (req: Request) => {
       throw new Error('Kick import not yet supported. Please use Twitch or direct upload.');
     }
 
+    const clipStatus = source_type === 'twitch' ? 'completed' : 'processing';
+
     const { data: clip, error: insertError } = await supabase
       .from('clips')
       .insert({
@@ -79,12 +81,23 @@ Deno.serve(async (req: Request) => {
         thumbnail_url: thumbnailUrl,
         duration,
         game_title,
-        status: 'completed',
+        status: clipStatus,
       })
       .select()
       .single();
 
     if (insertError) throw insertError;
+
+    if (source_type !== 'twitch') {
+      fetch(`${supabaseUrl}/functions/v1/process-ai-detection`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ clip_id: clipId }),
+      }).catch(err => console.error('Failed to trigger AI processing:', err));
+    }
 
     return new Response(
       JSON.stringify({ success: true, clip }),
