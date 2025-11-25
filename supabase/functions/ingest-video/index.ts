@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
         thumbnailUrl = vodResult.thumbnailUrl;
         duration = vodResult.duration;
       } else if (isClip) {
-        const clipResult = await downloadTwitchClip(url, user.id, clipId, supabase);
+        const clipResult = await handleTwitchClip(url, user.id, clipId, supabase);
         videoUrl = clipResult.videoUrl;
         thumbnailUrl = clipResult.thumbnailUrl;
         duration = clipResult.duration;
@@ -189,7 +189,7 @@ async function handleTwitchVod(
   };
 }
 
-async function downloadTwitchClip(
+async function handleTwitchClip(
   url: string,
   userId: string,
   clipId: string,
@@ -242,54 +242,36 @@ async function downloadTwitchClip(
   console.log('Twitch API response:', JSON.stringify(clipData));
   
   if (!clipData.data || clipData.data.length === 0) {
-    throw new Error(`Clip not found or unavailable. API returned: ${JSON.stringify(clipData)}`);
+    throw new Error(`Clip not found or unavailable. Clip ID: ${clipSlug}`);
   }
 
   const clip = clipData.data[0];
-  const videoDownloadUrl = clip.thumbnail_url.replace('-preview-480x272.jpg', '.mp4');
-
-  const videoResponse = await fetch(videoDownloadUrl);
-  if (!videoResponse.ok) throw new Error('Failed to download clip');
-
-  const videoBlob = await videoResponse.arrayBuffer();
-  const videoPath = `${userId}/${clipId}.mp4`;
-
-  const { error: uploadError } = await supabase.storage
-    .from('clips')
-    .upload(videoPath, videoBlob, {
-      contentType: 'video/mp4',
-      upsert: false,
-    });
-
-  if (uploadError) throw uploadError;
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('clips')
-    .getPublicUrl(videoPath);
-
+  
   let thumbnailUrl = clip.thumbnail_url;
   if (thumbnailUrl) {
     try {
       const thumbResponse = await fetch(thumbnailUrl);
-      const thumbBlob = await thumbResponse.arrayBuffer();
-      const thumbPath = `${userId}/${clipId}.jpg`;
-      
-      await supabase.storage
-        .from('thumbnails')
-        .upload(thumbPath, thumbBlob, { contentType: 'image/jpeg' });
+      if (thumbResponse.ok) {
+        const thumbBlob = await thumbResponse.arrayBuffer();
+        const thumbPath = `${userId}/${clipId}.jpg`;
+        
+        await supabase.storage
+          .from('thumbnails')
+          .upload(thumbPath, thumbBlob, { contentType: 'image/jpeg' });
 
-      const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
-        .from('thumbnails')
-        .getPublicUrl(thumbPath);
-      
-      thumbnailUrl = thumbPublicUrl;
+        const { data: { publicUrl } } = supabase.storage
+          .from('thumbnails')
+          .getPublicUrl(thumbPath);
+        
+        thumbnailUrl = publicUrl;
+      }
     } catch (thumbErr) {
       console.error('Thumbnail upload failed:', thumbErr);
     }
   }
 
   return {
-    videoUrl: publicUrl,
+    videoUrl: url,
     thumbnailUrl,
     duration: clip.duration,
   };
