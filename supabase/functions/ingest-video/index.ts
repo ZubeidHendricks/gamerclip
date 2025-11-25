@@ -273,6 +273,6 @@ async function handleTwitchClip(
   return {
     videoUrl: url,
     thumbnailUrl,
-    duration: clip.duration,
+    duration: Math.round(clip.duration),
   };
 }
