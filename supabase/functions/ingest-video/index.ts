@@ -79,21 +79,12 @@ Deno.serve(async (req: Request) => {
         thumbnail_url: thumbnailUrl,
         duration,
         game_title,
-        status: 'processing',
+        status: 'completed',
       })
       .select()
       .single();
 
     if (insertError) throw insertError;
-
-    fetch(`${supabaseUrl}/functions/v1/process-ai-detection`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ clip_id: clipId }),
-    }).catch(err => console.error('Failed to trigger AI processing:', err));
 
     return new Response(
       JSON.stringify({ success: true, clip }),

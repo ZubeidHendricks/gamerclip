@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
+import { WebView } from 'react-native-webview';
 import { Play, Pause } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 
@@ -15,14 +16,42 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
   const [showControls, setShowControls] = useState(true);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isTwitchEmbed, setIsTwitchEmbed] = useState(false);
+  const [twitchEmbedUrl, setTwitchEmbedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (videoUrl) {
-      getSignedUrl(videoUrl);
+      if (videoUrl.includes('twitch.tv')) {
+        handleTwitchUrl(videoUrl);
+      } else {
+        getSignedUrl(videoUrl);
+      }
     } else {
       setLoading(false);
     }
   }, [videoUrl]);
+
+  const handleTwitchUrl = (url: string) => {
+    setIsTwitchEmbed(true);
+
+    const clipMatch = url.match(/clip\/([A-Za-z0-9_-]+)/);
+    if (clipMatch) {
+      const clipId = clipMatch[1];
+      setTwitchEmbedUrl(
+        `https://clips.twitch.tv/embed?clip=${clipId}&parent=${window.location.hostname}&autoplay=false`
+      );
+    } else {
+      const vodMatch = url.match(/videos\/(\d+)/);
+      if (vodMatch) {
+        const vodId = vodMatch[1];
+        setTwitchEmbedUrl(
+          `https://player.twitch.tv/?video=${vodId}&parent=${window.location.hostname}&autoplay=false`
+        );
+      }
+    }
+
+    setLoading(false);
+  };
 
   const getSignedUrl = async (url: string) => {
     try {
@@ -74,7 +103,29 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
     );
   }
 
-  if (!videoUrl || !signedUrl) {
+  if (!videoUrl) {
+    return (
+      <View style={[styles.placeholder, style]}>
+        <Play size={48} color="#94a3b8" />
+        <Text style={styles.placeholderText}>No video available</Text>
+      </View>
+    );
+  }
+
+  if (isTwitchEmbed && twitchEmbedUrl) {
+    return (
+      <View style={[styles.container, style]}>
+        <WebView
+          source={{ uri: twitchEmbedUrl }}
+          style={styles.video}
+          allowsFullscreenVideo
+          mediaPlaybackRequiresUserAction={false}
+        />
+      </View>
+    );
+  }
+
+  if (!signedUrl) {
     return (
       <View style={[styles.placeholder, style]}>
         <Play size={48} color="#94a3b8" />
