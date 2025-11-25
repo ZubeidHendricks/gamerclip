@@ -214,7 +214,22 @@ async function downloadTwitchClip(
 
   const { access_token } = await tokenResponse.json();
 
-  const clipSlug = url.match(/clip\/(\w+)/)?.[1] || url.split('/').pop();
+  let clipSlug = '';
+  
+  if (url.includes('clips.twitch.tv/')) {
+    clipSlug = url.split('/').pop() || '';
+  } else {
+    const match = url.match(/\/clip\/([A-Za-z0-9_-]+)/);
+    if (match) {
+      clipSlug = match[1];
+    }
+  }
+
+  if (!clipSlug) {
+    throw new Error('Could not extract clip ID from URL');
+  }
+
+  console.log('Fetching Twitch clip:', clipSlug);
   
   const clipResponse = await fetch(`https://api.twitch.tv/helix/clips?id=${clipSlug}`, {
     headers: {
@@ -224,8 +239,10 @@ async function downloadTwitchClip(
   });
 
   const clipData = await clipResponse.json();
+  console.log('Twitch API response:', JSON.stringify(clipData));
+  
   if (!clipData.data || clipData.data.length === 0) {
-    throw new Error('Clip not found or unavailable');
+    throw new Error(`Clip not found or unavailable. API returned: ${JSON.stringify(clipData)}`);
   }
 
   const clip = clipData.data[0];
