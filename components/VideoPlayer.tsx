@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { Play, Pause } from 'lucide-react-native';
+import { supabase } from '@/lib/supabase';
 
 type VideoPlayerProps = {
   videoUrl: string | null;
@@ -12,6 +13,46 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (videoUrl) {
+      getSignedUrl(videoUrl);
+    } else {
+      setLoading(false);
+    }
+  }, [videoUrl]);
+
+  const getSignedUrl = async (url: string) => {
+    try {
+      if (url.includes('storage/v1/object/public/clips/')) {
+        const pathMatch = url.match(/public\/clips\/(.+)/);
+        if (pathMatch) {
+          const filePath = pathMatch[1];
+          const { data, error } = await supabase.storage
+            .from('clips')
+            .createSignedUrl(filePath, 3600);
+
+          if (error) {
+            console.error('Error creating signed URL:', error);
+            setSignedUrl(url);
+          } else {
+            setSignedUrl(data.signedUrl);
+          }
+        } else {
+          setSignedUrl(url);
+        }
+      } else {
+        setSignedUrl(url);
+      }
+    } catch (err) {
+      console.error('Error processing video URL:', err);
+      setSignedUrl(url);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePlayPause = async () => {
     if (!videoRef.current) return;
@@ -25,7 +66,15 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
     }
   };
 
-  if (!videoUrl) {
+  if (loading) {
+    return (
+      <View style={[styles.placeholder, style]}>
+        <Text style={styles.placeholderText}>Loading video...</Text>
+      </View>
+    );
+  }
+
+  if (!videoUrl || !signedUrl) {
     return (
       <View style={[styles.placeholder, style]}>
         <Play size={48} color="#94a3b8" />
@@ -38,7 +87,7 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
     <View style={[styles.container, style]}>
       <Video
         ref={videoRef}
-        source={{ uri: videoUrl }}
+        source={{ uri: signedUrl }}
         style={styles.video}
         resizeMode={ResizeMode.CONTAIN}
         onPlaybackStatusUpdate={(status) => {
