@@ -88,14 +88,20 @@ Deno.serve(async (req: Request) => {
 
     if (insertError) throw insertError;
 
-    if (source_type !== 'twitch') {
+    const isVodImport = source_type === 'twitch' && url.includes('/videos/');
+    const shouldAutoClip = isVodImport;
+
+    if (source_type !== 'twitch' || isVodImport) {
       fetch(`${supabaseUrl}/functions/v1/process-ai-detection`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${supabaseKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ clip_id: clipId }),
+        body: JSON.stringify({
+          clip_id: clipId,
+          auto_clip: shouldAutoClip,
+        }),
       }).catch(err => console.error('Failed to trigger AI processing:', err));
     }
 
