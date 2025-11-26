@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Sparkles, Check, Download } from 'lucide-react-native';
+import { ArrowLeft, Sparkles, Check, Download, Smartphone } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
@@ -30,6 +30,7 @@ export default function ExportScreen() {
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingVertical, setExportingVertical] = useState(false);
   const [processingOptions, setProcessingOptions] = useState({
     add_captions: false,
     enhance_speech: false,
@@ -88,6 +89,53 @@ export default function ExportScreen() {
       return;
     }
     setSelectedPack(pack.id);
+  };
+
+  const handleVerticalExport = async (format: 'tiktok' | 'reels' | 'shorts') => {
+    if (!clip) return;
+
+    try {
+      setExportingVertical(true);
+
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/export-vertical-clip`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            clip_id: id,
+            format,
+            include_captions: true,
+            crop_mode: 'center',
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to start vertical export');
+      }
+
+      Alert.alert(
+        'Export Started',
+        result.message || `Your ${format} export is being processed!`,
+        [{ text: 'OK' }]
+      );
+    } catch (err: any) {
+      console.error('Vertical export error:', err);
+      Alert.alert('Error', err.message || 'Failed to start vertical export');
+    } finally {
+      setExportingVertical(false);
+    }
   };
 
   const handleStartExport = async () => {
@@ -374,6 +422,54 @@ export default function ExportScreen() {
             </View>
           </View>
 
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Export for Social</Text>
+            <Text style={styles.sectionDescription}>
+              One-click vertical export optimized for TikTok, Reels, and Shorts
+            </Text>
+
+            <View style={styles.verticalExportGrid}>
+              <TouchableOpacity
+                style={styles.verticalExportButton}
+                onPress={() => handleVerticalExport('tiktok')}
+                disabled={exportingVertical}
+                activeOpacity={0.7}>
+                <View style={[styles.socialIcon, { backgroundColor: '#000000' }]}>
+                  <Smartphone size={24} color="#00f2ea" />
+                </View>
+                <Text style={styles.verticalExportLabel}>TikTok</Text>
+                <Text style={styles.verticalExportDetails}>9:16 • Max 3min</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.verticalExportButton}
+                onPress={() => handleVerticalExport('reels')}
+                disabled={exportingVertical}
+                activeOpacity={0.7}>
+                <View style={[styles.socialIcon, {
+                  backgroundColor: '#833ab4',
+                  background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)'
+                }]}>
+                  <Smartphone size={24} color="#ffffff" />
+                </View>
+                <Text style={styles.verticalExportLabel}>Reels</Text>
+                <Text style={styles.verticalExportDetails}>9:16 • Max 90s</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.verticalExportButton}
+                onPress={() => handleVerticalExport('shorts')}
+                disabled={exportingVertical}
+                activeOpacity={0.7}>
+                <View style={[styles.socialIcon, { backgroundColor: '#FF0000' }]}>
+                  <Smartphone size={24} color="#ffffff" />
+                </View>
+                <Text style={styles.verticalExportLabel}>Shorts</Text>
+                <Text style={styles.verticalExportDetails}>9:16 • Max 60s</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <View style={styles.exportInfo}>
             <Text style={styles.exportInfoTitle}>Export Details</Text>
             <View style={styles.exportInfoRow}>
@@ -644,5 +740,48 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#94a3b8',
+  },
+  verticalExportGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  verticalExportButton: {
+    flex: 1,
+    backgroundColor: Colors.background.secondary,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.border.light,
+    shadowColor: Colors.shadow.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  socialIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  verticalExportLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text.primary,
+    marginBottom: 4,
+  },
+  verticalExportDetails: {
+    fontSize: 11,
+    color: Colors.text.secondary,
+    fontWeight: '500',
   },
 });
