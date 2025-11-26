@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
         thumbnailUrl = clipResult.thumbnailUrl;
         duration = clipResult.duration;
       } else {
-        throw new Error('Invalid Twitch URL. Please provide a clip or VOD URL.');
+        throw new Error('Invalid Twitch URL format. Please use a valid Twitch clip URL (e.g., https://clips.twitch.tv/ClipSlug or https://twitch.tv/username/clip/ClipSlug) or VOD URL.');
       }
     } else if (source_type === 'kick') {
       throw new Error('Kick import not yet supported. Please use Twitch or direct upload.');
@@ -112,85 +112,115 @@ Deno.serve(async (req: Request) => {
   }
 });
 
+async function getTwitchAccessToken(): Promise<string> {
+  const twitchClientId = Deno.env.get('TWITCH_CLIENT_ID');
+  const twitchClientSecret = Deno.env.get('TWITCH_CLIENT_SECRET');
+
+  if (!twitchClientId || !twitchClientSecret) {
+    throw new Error('Twitch API is not configured. To enable Twitch imports, please set up your Twitch Developer App credentials in the Supabase dashboard under Edge Functions > Secrets. Required secrets: TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET.');
+  }
+
+  try {
+    const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: twitchClientId,
+        client_secret: twitchClientSecret,
+        grant_type: 'client_credentials',
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.text();
+      console.error('Twitch token error:', errorData);
+      throw new Error('Failed to authenticate with Twitch. Please check your Twitch API credentials.');
+    }
+
+    const tokenData = await tokenResponse.json();
+    return tokenData.access_token;
+  } catch (error) {
+    console.error('Twitch auth error:', error);
+    throw new Error('Unable to connect to Twitch API. Please try again later.');
+  }
+}
+
 async function handleTwitchVod(
   url: string,
   userId: string,
   clipId: string,
   supabase: any
 ): Promise<{ videoUrl: string; thumbnailUrl: string; duration: number }> {
-  const twitchClientId = Deno.env.get('TWITCH_CLIENT_ID');
-  const twitchClientSecret = Deno.env.get('TWITCH_CLIENT_SECRET');
-
-  if (!twitchClientId || !twitchClientSecret) {
-    throw new Error('Twitch API credentials not configured. Please contact support.');
-  }
-
-  const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: twitchClientId,
-      client_secret: twitchClientSecret,
-      grant_type: 'client_credentials',
-    }),
-  });
-
-  const { access_token } = await tokenResponse.json();
+  const access_token = await getTwitchAccessToken();
+  const twitchClientId = Deno.env.get('TWITCH_CLIENT_ID')!;
 
   const vodId = url.match(/videos\/(\d+)/)?.[1];
   if (!vodId) {
-    throw new Error('Invalid VOD URL');
+    throw new Error('Could not extract VOD ID from URL. Please provide a valid Twitch VOD URL (e.g., https://twitch.tv/videos/1234567890).');
   }
 
-  const vodResponse = await fetch(`https://api.twitch.tv/helix/videos?id=${vodId}`, {
-    headers: {
-      'Client-ID': twitchClientId,
-      'Authorization': `Bearer ${access_token}`,
-    },
-  });
+  try {
+    const vodResponse = await fetch(`https://api.twitch.tv/helix/videos?id=${vodId}`, {
+      headers: {
+        'Client-ID': twitchClientId,
+        'Authorization': `Bearer ${access_token}`,
+      },
+    });
 
-  const vodData = await vodResponse.json();
-  if (!vodData.data || vodData.data.length === 0) {
-    throw new Error('VOD not found or unavailable');
-  }
-
-  const vod = vodData.data[0];
-  
-  const durationMatch = vod.duration.match(/(\d+)h(\d+)m(\d+)s/);
-  let totalSeconds = 0;
-  if (durationMatch) {
-    totalSeconds = (parseInt(durationMatch[1]) * 3600) + (parseInt(durationMatch[2]) * 60) + parseInt(durationMatch[3]);
-  }
-
-  let thumbnailUrl = vod.thumbnail_url.replace('%{width}', '480').replace('%{height}', '272');
-
-  if (thumbnailUrl) {
-    try {
-      const thumbResponse = await fetch(thumbnailUrl);
-      if (thumbResponse.ok) {
-        const thumbBlob = await thumbResponse.arrayBuffer();
-        const thumbPath = `${userId}/${clipId}.jpg`;
-        
-        await supabase.storage
-          .from('thumbnails')
-          .upload(thumbPath, thumbBlob, { contentType: 'image/jpeg' });
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('thumbnails')
-          .getPublicUrl(thumbPath);
-        
-        thumbnailUrl = publicUrl;
-      }
-    } catch (thumbErr) {
-      console.error('Thumbnail upload failed:', thumbErr);
+    if (!vodResponse.ok) {
+      const errorText = await vodResponse.text();
+      console.error('Twitch VOD API error:', errorText);
+      throw new Error('Failed to fetch VOD information from Twitch.');
     }
-  }
 
-  return {
-    videoUrl: url,
-    thumbnailUrl,
-    duration: totalSeconds,
-  };
+    const vodData = await vodResponse.json();
+    if (!vodData.data || vodData.data.length === 0) {
+      throw new Error('VOD not found. This video may be deleted, private, or subscriber-only.');
+    }
+
+    const vod = vodData.data[0];
+    
+    const durationMatch = vod.duration.match(/(\d+)h(\d+)m(\d+)s/);
+    let totalSeconds = 0;
+    if (durationMatch) {
+      totalSeconds = (parseInt(durationMatch[1]) * 3600) + (parseInt(durationMatch[2]) * 60) + parseInt(durationMatch[3]);
+    }
+
+    let thumbnailUrl = vod.thumbnail_url.replace('%{width}', '480').replace('%{height}', '272');
+
+    if (thumbnailUrl) {
+      try {
+        const thumbResponse = await fetch(thumbnailUrl);
+        if (thumbResponse.ok) {
+          const thumbBlob = await thumbResponse.arrayBuffer();
+          const thumbPath = `${userId}/${clipId}.jpg`;
+          
+          await supabase.storage
+            .from('thumbnails')
+            .upload(thumbPath, thumbBlob, { contentType: 'image/jpeg' });
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('thumbnails')
+            .getPublicUrl(thumbPath);
+          
+          thumbnailUrl = publicUrl;
+        }
+      } catch (thumbErr) {
+        console.error('Thumbnail upload failed:', thumbErr);
+      }
+    }
+
+    return {
+      videoUrl: url,
+      thumbnailUrl,
+      duration: totalSeconds,
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('not found')) {
+      throw error;
+    }
+    throw new Error('Failed to process Twitch VOD. Please ensure the URL is correct and the video is publicly accessible.');
+  }
 }
 
 async function handleTwitchClip(
@@ -199,29 +229,13 @@ async function handleTwitchClip(
   clipId: string,
   supabase: any
 ): Promise<{ videoUrl: string; thumbnailUrl: string; duration: number }> {
-  const twitchClientId = Deno.env.get('TWITCH_CLIENT_ID');
-  const twitchClientSecret = Deno.env.get('TWITCH_CLIENT_SECRET');
-
-  if (!twitchClientId || !twitchClientSecret) {
-    throw new Error('Twitch API credentials not configured. Please contact support.');
-  }
-
-  const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: twitchClientId,
-      client_secret: twitchClientSecret,
-      grant_type: 'client_credentials',
-    }),
-  });
-
-  const { access_token } = await tokenResponse.json();
+  const access_token = await getTwitchAccessToken();
+  const twitchClientId = Deno.env.get('TWITCH_CLIENT_ID')!;
 
   let clipSlug = '';
   
   if (url.includes('clips.twitch.tv/')) {
-    clipSlug = url.split('/').pop() || '';
+    clipSlug = url.split('/').pop()?.split('?')[0] || '';
   } else {
     const match = url.match(/\/clip\/([A-Za-z0-9_-]+)/);
     if (match) {
@@ -229,54 +243,67 @@ async function handleTwitchClip(
     }
   }
 
-  if (!clipSlug) {
-    throw new Error('Could not extract clip ID from URL');
+  if (!clipSlug || clipSlug.length === 0) {
+    throw new Error('Could not extract clip ID from URL. Please provide a valid Twitch clip URL. Examples:\n• https://clips.twitch.tv/ClipSlug\n• https://twitch.tv/username/clip/ClipSlug');
   }
 
   console.log('Fetching Twitch clip:', clipSlug);
   
-  const clipResponse = await fetch(`https://api.twitch.tv/helix/clips?id=${clipSlug}`, {
-    headers: {
-      'Client-ID': twitchClientId,
-      'Authorization': `Bearer ${access_token}`,
-    },
-  });
+  try {
+    const clipResponse = await fetch(`https://api.twitch.tv/helix/clips?id=${clipSlug}`, {
+      headers: {
+        'Client-ID': twitchClientId,
+        'Authorization': `Bearer ${access_token}`,
+      },
+    });
 
-  const clipData = await clipResponse.json();
-  console.log('Twitch API response:', JSON.stringify(clipData));
-  
-  if (!clipData.data || clipData.data.length === 0) {
-    throw new Error(`Clip not found or unavailable. Clip ID: ${clipSlug}`);
-  }
-
-  const clip = clipData.data[0];
-  
-  let thumbnailUrl = clip.thumbnail_url;
-  if (thumbnailUrl) {
-    try {
-      const thumbResponse = await fetch(thumbnailUrl);
-      if (thumbResponse.ok) {
-        const thumbBlob = await thumbResponse.arrayBuffer();
-        const thumbPath = `${userId}/${clipId}.jpg`;
-        
-        await supabase.storage
-          .from('thumbnails')
-          .upload(thumbPath, thumbBlob, { contentType: 'image/jpeg' });
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('thumbnails')
-          .getPublicUrl(thumbPath);
-        
-        thumbnailUrl = publicUrl;
-      }
-    } catch (thumbErr) {
-      console.error('Thumbnail upload failed:', thumbErr);
+    if (!clipResponse.ok) {
+      const errorText = await clipResponse.text();
+      console.error('Twitch Clips API error:', errorText);
+      throw new Error('Failed to fetch clip information from Twitch.');
     }
-  }
 
-  return {
-    videoUrl: url,
-    thumbnailUrl,
-    duration: Math.round(clip.duration),
-  };
+    const clipData = await clipResponse.json();
+    console.log('Twitch API response:', JSON.stringify(clipData));
+    
+    if (!clipData.data || clipData.data.length === 0) {
+      throw new Error(`Clip not found. This clip may be deleted, expired, or unavailable. Twitch clips are automatically deleted after 90 days if not saved. Clip ID: ${clipSlug}`);
+    }
+
+    const clip = clipData.data[0];
+    
+    let thumbnailUrl = clip.thumbnail_url;
+    if (thumbnailUrl) {
+      try {
+        const thumbResponse = await fetch(thumbnailUrl);
+        if (thumbResponse.ok) {
+          const thumbBlob = await thumbResponse.arrayBuffer();
+          const thumbPath = `${userId}/${clipId}.jpg`;
+          
+          await supabase.storage
+            .from('thumbnails')
+            .upload(thumbPath, thumbBlob, { contentType: 'image/jpeg' });
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('thumbnails')
+            .getPublicUrl(thumbPath);
+          
+          thumbnailUrl = publicUrl;
+        }
+      } catch (thumbErr) {
+        console.error('Thumbnail upload failed:', thumbErr);
+      }
+    }
+
+    return {
+      videoUrl: url,
+      thumbnailUrl,
+      duration: Math.round(clip.duration),
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('not found')) {
+      throw error;
+    }
+    throw new Error('Failed to process Twitch clip. Please ensure the URL is correct and the clip is still available.');
+  }
 }
