@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   videoContainer: {
     marginBottom: 24,
     width: '100%',
-    height: 350,
+    aspectRatio: 16 / 9,
   },
   video: {
     width: '100%',

@@ -175,6 +175,7 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
         source={{ uri: signedUrl }}
         style={styles.video}
         resizeMode={ResizeMode.CONTAIN}
+        videoStyle={{ width: '100%', height: '100%' }}
         shouldPlay={false}
         isLooping={false}
         onPlaybackStatusUpdate={(status) => {
@@ -227,7 +228,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   video: {
-    flex: 1,
     width: '100%',
     height: '100%',
   },
