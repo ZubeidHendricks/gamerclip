@@ -15,12 +15,15 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  let export_id: string | null = null;
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { export_id }: RenderRequest = await req.json();
+    const body: RenderRequest = await req.json();
+    export_id = body.export_id;
 
     if (!export_id) {
       throw new Error('Missing export_id');
@@ -36,7 +39,7 @@ Deno.serve(async (req: Request) => {
         style_pack:style_packs(*)
       `)
       .eq('id', export_id)
-      .single();
+      .maybeSingle();
 
     if (exportError) {
       console.error('Export fetch error:', exportError);
@@ -59,9 +62,10 @@ Deno.serve(async (req: Request) => {
       .eq('id', export_id);
 
     const shotstackApiKey = Deno.env.get('SHOTSTACK_API_KEY');
+    const useMockExport = !shotstackApiKey || Deno.env.get('USE_MOCK_EXPORT') === 'true';
 
-    if (!shotstackApiKey) {
-      console.warn('SHOTSTACK_API_KEY not configured - using mock export');
+    if (useMockExport) {
+      console.warn('Using mock export (SHOTSTACK_API_KEY not configured or USE_MOCK_EXPORT=true)');
       const mockResult = await createMockExport(
         exportJob.clip,
         exportJob.user_id,
@@ -83,7 +87,7 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           success: true,
           output_url: mockResult.url,
-          message: 'Mock export created (SHOTSTACK_API_KEY not configured)'
+          message: 'Mock export created - returns original video'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -118,17 +122,8 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({ success: true, output_url: exportUrl }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (err) {
+  } catch (err: any) {
     console.error('Render error:', err);
-
-    const body = await req.text();
-    let export_id = null;
-    try {
-      const parsed = JSON.parse(body);
-      export_id = parsed.export_id;
-    } catch (e) {
-      console.error('Failed to parse request body');
-    }
 
     if (export_id) {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -246,40 +241,52 @@ async function renderVideo(
     let status = 'rendering';
     let renderUrl = null;
     let attempts = 0;
-    const maxAttempts = 60;
+    const maxAttempts = 36;
 
     while ((status === 'rendering' || status === 'queued') && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 5000));
       attempts++;
 
-      const statusResponse = await fetch(`https://api.shotstack.io/v1/render/${renderId}`, {
-        headers: { 'x-api-key': shotstackApiKey },
-      });
+      try {
+        const statusResponse = await fetch(`https://api.shotstack.io/v1/render/${renderId}`, {
+          headers: { 'x-api-key': shotstackApiKey },
+        });
 
-      if (!statusResponse.ok) {
-        console.error('Failed to check render status');
-        continue;
-      }
+        if (!statusResponse.ok) {
+          console.error('Failed to check render status:', statusResponse.status);
+          continue;
+        }
 
-      const statusData = await statusResponse.json();
-      status = statusData.response.status;
-      renderUrl = statusData.response.url;
+        const statusData = await statusResponse.json();
+        status = statusData.response?.status || 'unknown';
+        renderUrl = statusData.response?.url;
 
-      console.log(`Render status (attempt ${attempts}):`, status);
+        console.log(`Render status (attempt ${attempts}/${maxAttempts}):`, status);
 
-      if (status === 'failed') {
-        const error = statusData.response.error || 'Unknown Shotstack error';
-        console.error('Shotstack render failed:', error);
-        throw new Error(`Shotstack render failed: ${error}`);
+        if (status === 'failed') {
+          const error = statusData.response.error || 'Unknown Shotstack error';
+          console.error('Shotstack render failed:', error);
+          throw new Error(`Shotstack render failed: ${error}`);
+        }
+
+        if (status === 'done' && renderUrl) {
+          console.log('Render completed successfully');
+          break;
+        }
+      } catch (pollError) {
+        console.error('Error polling render status:', pollError);
+        if (attempts >= maxAttempts - 1) {
+          throw pollError;
+        }
       }
     }
 
-    if (attempts >= maxAttempts) {
-      throw new Error('Render timeout - took too long to complete');
+    if (attempts >= maxAttempts && status !== 'done') {
+      throw new Error(`Render timeout after ${maxAttempts * 5}s - status: ${status}`);
     }
 
     if (!renderUrl) {
-      throw new Error('No render URL returned from Shotstack');
+      throw new Error(`No render URL returned from Shotstack (status: ${status})`);
     }
 
     console.log('Render completed, downloading from:', renderUrl);
