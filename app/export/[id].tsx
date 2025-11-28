@@ -191,8 +191,12 @@ export default function ExportScreen() {
 
       Alert.alert(
         'Export Started',
-        'Your clip is being processed! You\'ll receive a notification when it\'s ready.',
+        'Your clip is being processed! Check "My Exports" in your profile to download when ready.',
         [
+          {
+            text: 'View Exports',
+            onPress: () => router.push('/exports'),
+          },
           {
             text: 'OK',
             onPress: () => router.back(),

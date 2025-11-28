@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, Settings, Crown, LogOut } from 'lucide-react-native';
+import { User, Settings, Crown, LogOut, Download } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -78,6 +78,16 @@ export default function ProfileScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Account</Text>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => router.push('/exports')}
+              activeOpacity={0.7}>
+              <View style={styles.menuIconContainer}>
+                <Download size={20} color="#3b82f6" />
+              </View>
+              <Text style={styles.menuText}>My Exports</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.menuItem}
