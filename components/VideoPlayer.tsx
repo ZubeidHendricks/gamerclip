@@ -67,6 +67,11 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
 
       if (url.includes('storage/v1/object/public/clips/')) {
         console.log('URL is from Supabase storage');
+
+        if (Platform.OS === 'android') {
+          console.log('Android detected - using direct URL with forced mp4 extension');
+        }
+
         setSignedUrl(url);
       } else {
         console.log('Using URL directly');
@@ -74,6 +79,7 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
       }
     } catch (err) {
       console.error('Error processing video URL:', err);
+      setError(`URL processing error: ${err}`);
       setSignedUrl(url);
     } finally {
       setLoading(false);
@@ -172,12 +178,16 @@ export default function VideoPlayer({ videoUrl, style }: VideoPlayerProps) {
     <View style={[styles.container, style]}>
       <Video
         ref={videoRef}
-        source={{ uri: signedUrl }}
+        source={{
+          uri: signedUrl,
+          overrideFileExtensionAndroid: 'mp4',
+        }}
         style={styles.video}
         resizeMode={ResizeMode.CONTAIN}
         videoStyle={{ width: '100%', height: '100%' }}
         shouldPlay={false}
         isLooping={false}
+        usePoster={false}
         onPlaybackStatusUpdate={(status) => {
           if ('isLoaded' in status) {
             if (status.isLoaded) {
